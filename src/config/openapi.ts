@@ -61,6 +61,7 @@ const categorySchema = {
     status: { type: 'string', enum: entityStatusEnum },
     createdAt: { type: 'string', format: 'date-time' },
     updatedAt: { type: 'string', format: 'date-time' },
+    productCount: { type: 'integer', description: 'Only present on the list endpoint.' },
   },
 };
 
@@ -131,6 +132,11 @@ const productSchema = {
     basePrice: { type: 'number' },
     mrp: { type: 'number' },
     status: { type: 'string', enum: ['ACTIVE', 'INACTIVE', 'DRAFT'] },
+    gsm: { type: 'integer', nullable: true },
+    fabric: { type: 'string', nullable: true },
+    fit: { type: 'string', enum: ['REGULAR', 'SLIM', 'OVERSIZED', 'RELAXED'], nullable: true },
+    neckType: { type: 'string', enum: ['CREW', 'V_NECK', 'POLO', 'ROUND', 'MOCK'], nullable: true },
+    biowash: { type: 'boolean' },
     createdAt: { type: 'string', format: 'date-time' },
     updatedAt: { type: 'string', format: 'date-time' },
   },
@@ -162,6 +168,11 @@ const productCreateSchema = {
     basePrice: { type: 'number' },
     mrp: { type: 'number' },
     status: { type: 'string', enum: ['ACTIVE', 'INACTIVE', 'DRAFT'] },
+    gsm: { type: 'integer', nullable: true },
+    fabric: { type: 'string', nullable: true },
+    fit: { type: 'string', enum: ['REGULAR', 'SLIM', 'OVERSIZED', 'RELAXED'], nullable: true },
+    neckType: { type: 'string', enum: ['CREW', 'V_NECK', 'POLO', 'ROUND', 'MOCK'], nullable: true },
+    biowash: { type: 'boolean' },
   },
 };
 
@@ -320,6 +331,19 @@ const categoriesPaths = {
       },
     },
   },
+  '/v1/categories/{id}/permanent': {
+    delete: {
+      tags: ['Categories'],
+      summary: 'Permanently delete a category',
+      description:
+        'Hard-deletes a category. The category must already be INACTIVE, and must have no products assigned to it.',
+      parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
+      responses: {
+        '200': { description: 'Category permanently deleted', content: { 'application/json': { schema: successEnvelope({ type: 'null' }) } } },
+        ...errorResponses,
+      },
+    },
+  },
 };
 
 const sizesPaths = {
@@ -422,7 +446,13 @@ const productsPaths = {
       parameters: [
         pageParam,
         limitParam,
-        { name: 'search', in: 'query', schema: { type: 'string' } },
+        {
+          name: 'search',
+          in: 'query',
+          description:
+            'Matches against product name, product type, variant SKU, and (when the term is numeric) base price or MRP.',
+          schema: { type: 'string' },
+        },
         { name: 'category_id', in: 'query', schema: { type: 'string' } },
         { name: 'status', in: 'query', schema: { type: 'string', enum: ['ACTIVE', 'INACTIVE', 'DRAFT'] } },
         { name: 'sortBy', in: 'query', schema: { type: 'string', enum: ['created_at', 'base_price', 'name'] } },
@@ -478,6 +508,19 @@ const productsPaths = {
       },
     },
   },
+  '/v1/products/{id}/permanent': {
+    delete: {
+      tags: ['Products'],
+      summary: 'Permanently delete a product',
+      description:
+        'Hard-deletes a product and cascades to its images, variants, and inventory history. The product must already be INACTIVE (deactivate it first via DELETE /v1/products/{id}).',
+      parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
+      responses: {
+        '200': { description: 'Product permanently deleted', content: { 'application/json': { schema: successEnvelope({ type: 'null' }) } } },
+        ...errorResponses,
+      },
+    },
+  },
   '/v1/products/{productId}/images': {
     get: {
       tags: ['Product Images'],
@@ -492,14 +535,46 @@ const productsPaths = {
     },
     post: {
       tags: ['Product Images'],
-      summary: 'Add an image to a product',
-      description:
-        'Accepts an image URL string only (Phase 1 has no upload pipeline). Ready to be wired to Cloudinary/S3 later via config.s3.',
+      summary: 'Add an image to a product by URL',
+      description: 'Attaches an image that already lives at a public URL (no file upload).',
       parameters: [{ name: 'productId', in: 'path', required: true, schema: { type: 'string' } }],
       requestBody: { content: { 'application/json': { schema: productImageCreateSchema } } },
       responses: {
         '201': {
           description: 'Product image created',
+          content: { 'application/json': { schema: successEnvelope(productImageSchema) } },
+        },
+        ...errorResponses,
+      },
+    },
+  },
+  '/v1/products/{productId}/images/upload': {
+    post: {
+      tags: ['Product Images'],
+      summary: 'Upload an image file for a product',
+      description:
+        'Uploads an image file to object storage (bucket configured via AWS_BUCKET_NAME, default "store"), stored under products/{categorySlug}/{productSlug}/{uuid}.{ext}, then attaches it to the product.',
+      parameters: [{ name: 'productId', in: 'path', required: true, schema: { type: 'string' } }],
+      requestBody: {
+        required: true,
+        content: {
+          'multipart/form-data': {
+            schema: {
+              type: 'object',
+              required: ['image'],
+              properties: {
+                image: { type: 'string', format: 'binary' },
+                imageType: { type: 'string', enum: ['PRODUCT', 'MODEL', 'LIFESTYLE'] },
+                sortOrder: { type: 'integer' },
+                isPrimary: { type: 'string', enum: ['true', 'false'] },
+              },
+            },
+          },
+        },
+      },
+      responses: {
+        '201': {
+          description: 'Product image uploaded',
           content: { 'application/json': { schema: successEnvelope(productImageSchema) } },
         },
         ...errorResponses,
@@ -622,11 +697,33 @@ const inventoryPaths = {
       parameters: [
         pageParam,
         limitParam,
-        { name: 'sku', in: 'query', schema: { type: 'string' } },
+        {
+          name: 'search',
+          in: 'query',
+          description: 'Matches against variant SKU and product name.',
+          schema: { type: 'string' },
+        },
         { name: 'product_id', in: 'query', schema: { type: 'string' } },
-        { name: 'product_name', in: 'query', schema: { type: 'string' } },
         { name: 'size_id', in: 'query', schema: { type: 'string' } },
         { name: 'color_id', in: 'query', schema: { type: 'string' } },
+        {
+          name: 'stock_status',
+          in: 'query',
+          description: 'Filter by computed stock status, using `threshold` as the low-stock boundary.',
+          schema: { type: 'string', enum: ['in_stock', 'low_stock', 'out_of_stock'] },
+        },
+        {
+          name: 'threshold',
+          in: 'query',
+          description: 'Low-stock boundary used by stock_status (default 10).',
+          schema: { type: 'integer' },
+        },
+        {
+          name: 'sortBy',
+          in: 'query',
+          schema: { type: 'string', enum: ['stockQuantity'] },
+        },
+        { name: 'sortOrder', in: 'query', schema: { type: 'string', enum: ['asc', 'desc'] } },
       ],
       responses: {
         '200': {
@@ -736,6 +833,202 @@ const dashboardSummarySchema = {
   },
 };
 
+const orderItemSchema = {
+  type: 'object',
+  properties: {
+    id: { type: 'string', format: 'uuid' },
+    productImageUrl: { type: 'string', nullable: true },
+    productName: { type: 'string' },
+    colorName: { type: 'string' },
+    colorHex: { type: 'string' },
+    sizeName: { type: 'string' },
+    sizeCode: { type: 'string' },
+    quantity: { type: 'integer' },
+    unitPrice: { type: 'number' },
+  },
+};
+
+const orderSchema = {
+  type: 'object',
+  properties: {
+    id: { type: 'string', format: 'uuid' },
+    orderNumber: { type: 'string' },
+    customerId: { type: 'string', format: 'uuid' },
+    customerName: { type: 'string' },
+    customerEmail: { type: 'string' },
+    customerPhone: { type: 'string' },
+    status: { type: 'string', enum: ['PENDING', 'PROCESSING', 'SHIPPED', 'DELIVERED', 'CANCELLED'] },
+    paymentStatus: { type: 'string', enum: ['PAID', 'UNPAID', 'REFUNDED'] },
+    totalAmount: { type: 'number' },
+    itemsCount: { type: 'integer' },
+    items: { type: 'array', items: orderItemSchema },
+    shippingAddress: { type: 'string' },
+    createdAt: { type: 'string', format: 'date-time' },
+  },
+};
+
+const createOrderSchemaDoc = {
+  type: 'object',
+  required: ['customerName', 'customerEmail', 'customerPhone', 'shippingAddress', 'items'],
+  properties: {
+    customerName: { type: 'string' },
+    customerEmail: { type: 'string', format: 'email' },
+    customerPhone: { type: 'string' },
+    shippingAddress: { type: 'string' },
+    paymentStatus: { type: 'string', enum: ['PAID', 'UNPAID', 'REFUNDED'] },
+    items: {
+      type: 'array',
+      minItems: 1,
+      items: {
+        type: 'object',
+        required: ['variantId', 'quantity'],
+        properties: {
+          variantId: { type: 'string', format: 'uuid' },
+          quantity: { type: 'integer', minimum: 1 },
+        },
+      },
+    },
+  },
+};
+
+const customerSchema = {
+  type: 'object',
+  properties: {
+    id: { type: 'string', format: 'uuid' },
+    name: { type: 'string' },
+    email: { type: 'string' },
+    phone: { type: 'string' },
+    status: { type: 'string', enum: entityStatusEnum },
+    ordersCount: { type: 'integer' },
+    totalSpent: { type: 'number' },
+    lastOrderAt: { type: 'string', format: 'date-time' },
+    createdAt: { type: 'string', format: 'date-time' },
+  },
+};
+
+const ordersPaths = {
+  '/v1/orders': {
+    get: {
+      tags: ['Orders'],
+      summary: 'List orders',
+      parameters: [
+        pageParam,
+        limitParam,
+        {
+          name: 'search',
+          in: 'query',
+          description: 'Matches against order number, customer name, and customer email.',
+          schema: { type: 'string' },
+        },
+        {
+          name: 'status',
+          in: 'query',
+          schema: { type: 'string', enum: ['PENDING', 'PROCESSING', 'SHIPPED', 'DELIVERED', 'CANCELLED'] },
+        },
+        { name: 'payment_status', in: 'query', schema: { type: 'string', enum: ['PAID', 'UNPAID', 'REFUNDED'] } },
+      ],
+      responses: {
+        '200': {
+          description: 'Orders fetched',
+          content: { 'application/json': { schema: successEnvelope(listResponse(orderSchema)) } },
+        },
+      },
+    },
+    post: {
+      tags: ['Orders'],
+      summary: 'Create an order',
+      description:
+        'Finds or creates the customer by email, decrements stock for each line item (rejecting if insufficient), and computes the order total from current variant/product pricing.',
+      requestBody: { content: { 'application/json': { schema: createOrderSchemaDoc } } },
+      responses: {
+        '201': {
+          description: 'Order created',
+          content: { 'application/json': { schema: successEnvelope(orderSchema) } },
+        },
+        ...errorResponses,
+      },
+    },
+  },
+  '/v1/orders/{id}': {
+    get: {
+      tags: ['Orders'],
+      summary: 'Get an order',
+      parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
+      responses: {
+        '200': { description: 'Order fetched', content: { 'application/json': { schema: successEnvelope(orderSchema) } } },
+        ...errorResponses,
+      },
+    },
+  },
+  '/v1/orders/{id}/status': {
+    patch: {
+      tags: ['Orders'],
+      summary: 'Update order fulfillment status',
+      description:
+        'Transitioning to CANCELLED automatically restocks all of the order\'s variants and logs a RESTOCK inventory transaction for each.',
+      parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
+      requestBody: {
+        content: {
+          'application/json': {
+            schema: {
+              type: 'object',
+              required: ['status'],
+              properties: {
+                status: { type: 'string', enum: ['PENDING', 'PROCESSING', 'SHIPPED', 'DELIVERED', 'CANCELLED'] },
+              },
+            },
+          },
+        },
+      },
+      responses: {
+        '200': { description: 'Order status updated', content: { 'application/json': { schema: successEnvelope(orderSchema) } } },
+        ...errorResponses,
+      },
+    },
+  },
+};
+
+const customersPaths = {
+  '/v1/customers': {
+    get: {
+      tags: ['Customers'],
+      summary: 'List customers',
+      description: 'ordersCount, totalSpent, and lastOrderAt are computed from the customer\'s orders.',
+      parameters: [
+        pageParam,
+        limitParam,
+        {
+          name: 'search',
+          in: 'query',
+          description: 'Matches against name, email, and phone.',
+          schema: { type: 'string' },
+        },
+        { name: 'status', in: 'query', schema: { type: 'string', enum: entityStatusEnum } },
+      ],
+      responses: {
+        '200': {
+          description: 'Customers fetched',
+          content: { 'application/json': { schema: successEnvelope(listResponse(customerSchema)) } },
+        },
+      },
+    },
+  },
+  '/v1/customers/{id}': {
+    get: {
+      tags: ['Customers'],
+      summary: 'Get a customer',
+      parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
+      responses: {
+        '200': {
+          description: 'Customer fetched',
+          content: { 'application/json': { schema: successEnvelope(customerSchema) } },
+        },
+        ...errorResponses,
+      },
+    },
+  },
+};
+
 const dashboardPaths = {
   '/v1/dashboard/summary': {
     get: {
@@ -770,6 +1063,8 @@ export const openApiSpec = {
     { name: 'Colors' },
     { name: 'Inventory' },
     { name: 'Dashboard' },
+    { name: 'Orders' },
+    { name: 'Customers' },
   ],
   components: {
     schemas: {
@@ -812,5 +1107,7 @@ export const openApiSpec = {
     ...colorsPaths,
     ...inventoryPaths,
     ...dashboardPaths,
+    ...ordersPaths,
+    ...customersPaths,
   },
 };

@@ -32,3 +32,8 @@ export const deleteCategory = asyncHandler(async (req: Request, res: Response) =
   const category = await categoryService.softDeleteCategory(req.params.id);
   return sendSuccess(res, category, 'Category deactivated');
 });
+
+export const deleteCategoryPermanently = asyncHandler(async (req: Request, res: Response) => {
+  await categoryService.deleteCategoryPermanently(req.params.id);
+  return sendSuccess(res, null, 'Category permanently deleted');
+});

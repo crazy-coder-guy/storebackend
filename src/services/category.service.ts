@@ -22,10 +22,21 @@ export async function listCategories(params: ListCategoriesParams) {
     ...(status ? { status } : {}),
   };
 
-  const [items, total] = await Promise.all([
-    prisma.category.findMany({ where, skip, take, orderBy: { createdAt: 'desc' } }),
+  const [rawItems, total] = await Promise.all([
+    prisma.category.findMany({
+      where,
+      skip,
+      take,
+      orderBy: { createdAt: 'desc' },
+      include: { _count: { select: { products: true } } },
+    }),
     prisma.category.count({ where }),
   ]);
+
+  const items = rawItems.map(({ _count, ...category }) => ({
+    ...category,
+    productCount: _count.products,
+  }));
 
   return { items, meta: buildMeta(page, limit, total) };
 }
@@ -59,4 +70,26 @@ export async function updateCategory(id: string, input: UpdateCategoryInput) {
 export async function softDeleteCategory(id: string) {
   await getCategoryById(id);
   return prisma.category.update({ where: { id }, data: { status: 'INACTIVE' } });
+}
+
+export async function deleteCategoryPermanently(id: string) {
+  const category = await getCategoryById(id);
+  if (category.status !== 'INACTIVE') {
+    throw new AppError(
+      422,
+      'CATEGORY_NOT_INACTIVE',
+      'Deactivate the category before deleting it permanently'
+    );
+  }
+
+  const productCount = await prisma.product.count({ where: { categoryId: id } });
+  if (productCount > 0) {
+    throw new AppError(
+      409,
+      'CATEGORY_HAS_PRODUCTS',
+      `Cannot delete: ${productCount} product${productCount === 1 ? '' : 's'} still assigned to this category`
+    );
+  }
+
+  await prisma.category.delete({ where: { id } });
 }

@@ -1,4 +1,4 @@
-import { PrismaClient } from '@prisma/client';
+import { OrderStatus, PaymentStatus, PrismaClient } from '@prisma/client';
 
 const prisma = new PrismaClient();
 
@@ -190,6 +190,177 @@ async function main() {
             status: 'ACTIVE',
           },
         });
+      }
+    }
+  }
+
+  console.log('Seeding customers and orders...');
+
+  const sampleVariants = await prisma.productVariant.findMany({
+    take: 12,
+    orderBy: { sku: 'asc' },
+    include: { product: true },
+  });
+
+  function variantAt(index: number) {
+    return sampleVariants[index % sampleVariants.length];
+  }
+
+  interface SeedOrder {
+    orderNumber: string;
+    customerName: string;
+    customerEmail: string;
+    customerPhone: string;
+    status: OrderStatus;
+    paymentStatus: PaymentStatus;
+    shippingAddress: string;
+    createdAt: Date;
+    lines: { variantIndex: number; quantity: number }[];
+    decrementStock: boolean;
+  }
+
+  const seedOrders: SeedOrder[] = [
+    {
+      orderNumber: '#ORD-1001',
+      customerName: 'Alexander Wright',
+      customerEmail: 'alex.wright@gmail.com',
+      customerPhone: '+1 (555) 234-5678',
+      status: 'PROCESSING',
+      paymentStatus: 'PAID',
+      shippingAddress: '742 Evergreen Terrace, Springfield, OR 97477',
+      createdAt: new Date(Date.now() - 3600000 * 2),
+      lines: [{ variantIndex: 0, quantity: 2 }],
+      decrementStock: true,
+    },
+    {
+      orderNumber: '#ORD-1002',
+      customerName: 'Sophia Chen',
+      customerEmail: 'sophia.chen@outlook.com',
+      customerPhone: '+1 (555) 876-5432',
+      status: 'SHIPPED',
+      paymentStatus: 'PAID',
+      shippingAddress: '1204 Pine Crest Ave, Seattle, WA 98101',
+      createdAt: new Date(Date.now() - 3600000 * 8),
+      lines: [
+        { variantIndex: 1, quantity: 1 },
+        { variantIndex: 2, quantity: 2 },
+      ],
+      decrementStock: true,
+    },
+    {
+      orderNumber: '#ORD-1003',
+      customerName: 'Marcus Vance',
+      customerEmail: 'm.vance@techcorp.io',
+      customerPhone: '+1 (555) 432-1098',
+      status: 'DELIVERED',
+      paymentStatus: 'PAID',
+      shippingAddress: '450 Mission St, San Francisco, CA 94105',
+      createdAt: new Date(Date.now() - 3600000 * 26),
+      lines: [{ variantIndex: 3, quantity: 1 }],
+      decrementStock: true,
+    },
+    {
+      orderNumber: '#ORD-1004',
+      customerName: 'Emma Watson',
+      customerEmail: 'emma.w@designstudio.co',
+      customerPhone: '+1 (555) 345-6789',
+      status: 'PENDING',
+      paymentStatus: 'UNPAID',
+      shippingAddress: '88 Tech Boulevard, Austin, TX 78701',
+      createdAt: new Date(Date.now() - 3600000 * 42),
+      lines: [{ variantIndex: 4, quantity: 1 }],
+      decrementStock: true,
+    },
+    {
+      orderNumber: '#ORD-1005',
+      customerName: "Liam O'Connor",
+      customerEmail: 'liam.oc@gmail.com',
+      customerPhone: '+1 (555) 901-2345',
+      status: 'CANCELLED',
+      paymentStatus: 'REFUNDED',
+      shippingAddress: '312 Beacon Street, Boston, MA 02116',
+      createdAt: new Date(Date.now() - 3600000 * 70),
+      lines: [{ variantIndex: 5, quantity: 1 }],
+      decrementStock: false,
+    },
+    {
+      orderNumber: '#ORD-1006',
+      customerName: 'Sophia Chen',
+      customerEmail: 'sophia.chen@outlook.com',
+      customerPhone: '+1 (555) 876-5432',
+      status: 'DELIVERED',
+      paymentStatus: 'PAID',
+      shippingAddress: '1204 Pine Crest Ave, Seattle, WA 98101',
+      createdAt: new Date(Date.now() - 3600000 * 240),
+      lines: [{ variantIndex: 6, quantity: 3 }],
+      decrementStock: true,
+    },
+  ];
+
+  if (sampleVariants.length > 0) {
+    for (const seedOrder of seedOrders) {
+      const existing = await prisma.order.findUnique({ where: { orderNumber: seedOrder.orderNumber } });
+      if (existing) continue;
+
+      const customer = await prisma.customer.upsert({
+        where: { email: seedOrder.customerEmail },
+        update: {},
+        create: {
+          name: seedOrder.customerName,
+          email: seedOrder.customerEmail,
+          phone: seedOrder.customerPhone,
+        },
+      });
+
+      const lines = seedOrder.lines.map((line) => {
+        const variant = variantAt(line.variantIndex);
+        const unitPrice = variant.price ?? variant.product.basePrice;
+        return { variant, quantity: line.quantity, unitPrice };
+      });
+
+      const totalAmount = lines.reduce(
+        (sum, line) => sum + Number(line.unitPrice) * line.quantity,
+        0
+      );
+
+      await prisma.order.create({
+        data: {
+          orderNumber: seedOrder.orderNumber,
+          customerId: customer.id,
+          status: seedOrder.status,
+          paymentStatus: seedOrder.paymentStatus,
+          totalAmount,
+          shippingAddress: seedOrder.shippingAddress,
+          createdAt: seedOrder.createdAt,
+          items: {
+            create: lines.map((line) => ({
+              variantId: line.variant.id,
+              quantity: line.quantity,
+              unitPrice: line.unitPrice,
+            })),
+          },
+        },
+      });
+
+      if (seedOrder.decrementStock) {
+        for (const line of lines) {
+          const previousStock = line.variant.stockQuantity;
+          const newStock = Math.max(0, previousStock - line.quantity);
+          await prisma.productVariant.update({
+            where: { id: line.variant.id },
+            data: { stockQuantity: newStock },
+          });
+          await prisma.inventoryTransaction.create({
+            data: {
+              variantId: line.variant.id,
+              transactionType: 'MANUAL_DECREASE',
+              quantity: line.quantity,
+              previousStock,
+              newStock,
+              reason: `Order ${seedOrder.orderNumber}`,
+            },
+          });
+        }
       }
     }
   }

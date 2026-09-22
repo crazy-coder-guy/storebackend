@@ -47,3 +47,8 @@ export const deleteProduct = asyncHandler(async (req: Request, res: Response) =>
   const product = await productService.softDeleteProduct(req.params.id);
   return sendSuccess(res, product, 'Product deactivated');
 });
+
+export const deleteProductPermanently = asyncHandler(async (req: Request, res: Response) => {
+  await productService.deleteProductPermanently(req.params.id);
+  return sendSuccess(res, null, 'Product permanently deleted');
+});

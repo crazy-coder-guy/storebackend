@@ -1,5 +1,6 @@
 import { Prisma } from '@prisma/client';
 import { NextFunction, Request, Response } from 'express';
+import { MulterError } from 'multer';
 import { AppError } from '../utils/AppError';
 
 function codeForUniqueViolation(target: string[] | undefined): string {
@@ -11,6 +12,8 @@ function codeForUniqueViolation(target: string[] | undefined): string {
   }
   if (field.includes('name')) return 'DUPLICATE_NAME';
   if (field.includes('code')) return 'DUPLICATE_CODE';
+  if (field.includes('email')) return 'DUPLICATE_EMAIL';
+  if (field.includes('order_number')) return 'DUPLICATE_ORDER_NUMBER';
   return 'DUPLICATE_ENTRY';
 }
 
@@ -20,6 +23,16 @@ export function errorHandler(err: Error, _req: Request, res: Response, _next: Ne
       success: false,
       message: err.message,
       error: { code: err.code },
+    });
+  }
+
+  if (err instanceof MulterError) {
+    const message =
+      err.code === 'LIMIT_FILE_SIZE' ? 'Image must be 5MB or smaller' : err.message;
+    return res.status(422).json({
+      success: false,
+      message,
+      error: { code: 'INVALID_FILE' },
     });
   }
 

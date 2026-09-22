@@ -1,8 +1,12 @@
+import { randomUUID } from 'crypto';
+import path from 'path';
 import { prisma } from '../database/prisma';
 import { AppError } from '../utils/AppError';
+import { uploadObject } from '../utils/s3';
 import {
   CreateProductImageInput,
   UpdateProductImageInput,
+  UploadProductImageInput,
 } from '../validation/productImage.validation';
 
 async function assertProductExists(productId: string) {
@@ -24,6 +28,32 @@ export async function createProductImage(productId: string, input: CreateProduct
     data: {
       productId,
       imageUrl: input.imageUrl,
+      imageType: input.imageType ?? 'PRODUCT',
+      sortOrder: input.sortOrder ?? 0,
+      isPrimary: input.isPrimary ?? false,
+    },
+  });
+}
+
+export async function uploadProductImage(
+  productId: string,
+  file: Express.Multer.File,
+  input: UploadProductImageInput
+) {
+  const product = await prisma.product.findUnique({
+    where: { id: productId },
+    include: { category: true },
+  });
+  if (!product) throw new AppError(404, 'NOT_FOUND', 'Product not found');
+
+  const ext = path.extname(file.originalname).toLowerCase() || '.jpg';
+  const key = `products/${product.category.slug}/${product.slug}/${randomUUID()}${ext}`;
+  const imageUrl = await uploadObject(key, file.buffer, file.mimetype);
+
+  return prisma.productImage.create({
+    data: {
+      productId,
+      imageUrl,
       imageType: input.imageType ?? 'PRODUCT',
       sortOrder: input.sortOrder ?? 0,
       isPrimary: input.isPrimary ?? false,
