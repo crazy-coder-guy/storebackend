@@ -1,0 +1,152 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+enum EntityStatus {
+  ACTIVE
+  INACTIVE
+}
+
+enum ProductStatus {
+  ACTIVE
+  INACTIVE
+  DRAFT
+}
+
+enum ImageType {
+  PRODUCT
+  MODEL
+  LIFESTYLE
+}
+
+enum TransactionType {
+  RESTOCK
+  MANUAL_INCREASE
+  MANUAL_DECREASE
+  ADJUSTMENT
+}
+
+model Category {
+  id          String       @id @default(uuid())
+  name        String
+  slug        String       @unique
+  description String?
+  status      EntityStatus @default(ACTIVE)
+  createdAt   DateTime     @default(now()) @map("created_at")
+  updatedAt   DateTime     @updatedAt @map("updated_at")
+
+  products Product[]
+
+  @@map("categories")
+}
+
+model Product {
+  id          String        @id @default(uuid())
+  name        String
+  slug        String        @unique
+  description String?
+  categoryId  String        @map("category_id")
+  productType String        @map("product_type")
+  basePrice   Decimal       @map("base_price")
+  mrp         Decimal
+  status      ProductStatus @default(DRAFT)
+  createdAt   DateTime      @default(now()) @map("created_at")
+  updatedAt   DateTime      @updatedAt @map("updated_at")
+
+  category Category         @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  images   ProductImage[]
+  variants ProductVariant[]
+
+  @@index([categoryId])
+  @@index([status])
+  @@map("products")
+}
+
+model ProductImage {
+  id         String    @id @default(uuid())
+  productId  String    @map("product_id")
+  imageUrl   String    @map("image_url")
+  imageType  ImageType @map("image_type")
+  sortOrder  Int       @default(0) @map("sort_order")
+  isPrimary  Boolean   @default(false) @map("is_primary")
+  createdAt  DateTime  @default(now()) @map("created_at")
+
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@index([productId])
+  @@map("product_images")
+}
+
+model Size {
+  id        String       @id @default(uuid())
+  name      String       @unique
+  code      String       @unique
+  sortOrder Int          @default(0) @map("sort_order")
+  status    EntityStatus @default(ACTIVE)
+  createdAt DateTime     @default(now()) @map("created_at")
+  updatedAt DateTime     @updatedAt @map("updated_at")
+
+  variants ProductVariant[]
+
+  @@map("sizes")
+}
+
+model Color {
+  id        String       @id @default(uuid())
+  name      String       @unique
+  code      String       @unique
+  hexCode   String       @map("hex_code")
+  status    EntityStatus @default(ACTIVE)
+  createdAt DateTime     @default(now()) @map("created_at")
+  updatedAt DateTime     @updatedAt @map("updated_at")
+
+  variants ProductVariant[]
+
+  @@map("colors")
+}
+
+model ProductVariant {
+  id            String       @id @default(uuid())
+  productId     String       @map("product_id")
+  colorId       String       @map("color_id")
+  sizeId        String       @map("size_id")
+  sku           String       @unique
+  price         Decimal?
+  stockQuantity Int          @default(0) @map("stock_quantity")
+  status        EntityStatus @default(ACTIVE)
+  createdAt     DateTime     @default(now()) @map("created_at")
+  updatedAt     DateTime     @updatedAt @map("updated_at")
+
+  product                Product                @relation(fields: [productId], references: [id], onDelete: Cascade)
+  color                  Color                  @relation(fields: [colorId], references: [id], onDelete: Restrict)
+  size                   Size                   @relation(fields: [sizeId], references: [id], onDelete: Restrict)
+  inventoryTransactions  InventoryTransaction[]
+
+  @@unique([productId, colorId, sizeId])
+  @@index([productId])
+  @@index([colorId])
+  @@index([sizeId])
+  @@map("product_variants")
+}
+
+model InventoryTransaction {
+  id              String          @id @default(uuid())
+  variantId       String          @map("variant_id")
+  transactionType TransactionType @map("transaction_type")
+  quantity        Int
+  previousStock   Int             @map("previous_stock")
+  newStock        Int             @map("new_stock")
+  reason          String?
+  createdAt       DateTime        @default(now()) @map("created_at")
+
+  variant ProductVariant @relation(fields: [variantId], references: [id], onDelete: Cascade)
+
+  @@index([variantId])
+  @@map("inventory_transactions")
+}
