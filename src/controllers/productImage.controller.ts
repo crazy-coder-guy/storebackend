@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import * as productImageService from '../services/productImage.service';
+import { AppError } from '../utils/AppError';
 import { asyncHandler } from '../utils/asyncHandler';
 import { sendSuccess } from '../utils/response';
 
@@ -11,6 +12,12 @@ export const listProductImages = asyncHandler(async (req: Request, res: Response
 export const createProductImage = asyncHandler(async (req: Request, res: Response) => {
   const image = await productImageService.createProductImage(req.params.productId, req.body);
   return sendSuccess(res, image, 'Product image created', 201);
+});
+
+export const uploadProductImage = asyncHandler(async (req: Request, res: Response) => {
+  if (!req.file) throw new AppError(422, 'VALIDATION_ERROR', 'An image file is required');
+  const image = await productImageService.uploadProductImage(req.params.productId, req.file, req.body);
+  return sendSuccess(res, image, 'Product image uploaded', 201);
 });
 
 export const updateProductImage = asyncHandler(async (req: Request, res: Response) => {

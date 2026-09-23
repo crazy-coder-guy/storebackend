@@ -2,6 +2,7 @@ import { Router } from 'express';
 import {
   createProduct,
   deleteProduct,
+  deleteProductPermanently,
   getProduct,
   listProducts,
   updateProduct,
@@ -18,6 +19,7 @@ router.get('/:id', getProduct);
 router.post('/', validate(createProductSchema), createProduct);
 router.patch('/:id', validate(updateProductSchema), updateProduct);
 router.delete('/:id', deleteProduct);
+router.delete('/:id/permanent', deleteProductPermanently);
 
 router.use('/:productId/images', imageRoutes);
 router.use('/:productId/variants', variantRoutes);

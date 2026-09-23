@@ -4,17 +4,24 @@ import { AppError } from '../utils/AppError';
 import { buildMeta } from '../utils/pagination';
 import { AdjustStockInput } from '../validation/inventory.validation';
 
+type StockStatusFilter = 'in_stock' | 'low_stock' | 'out_of_stock';
+
 interface ListInventoryParams {
   page: number;
   limit: number;
   skip: number;
   take: number;
-  sku?: string;
+  search?: string;
   productId?: string;
-  productName?: string;
   sizeId?: string;
   colorId?: string;
+  stockStatus?: StockStatusFilter;
+  threshold?: number;
+  sortBy?: string;
+  sortOrder?: 'asc' | 'desc';
 }
+
+const DEFAULT_LOW_STOCK_THRESHOLD = 10;
 
 const variantInclude = {
   product: true,
@@ -23,15 +30,33 @@ const variantInclude = {
 } satisfies Prisma.ProductVariantInclude;
 
 export async function listInventory(params: ListInventoryParams) {
-  const { page, limit, skip, take, sku, productId, productName, sizeId, colorId } = params;
+  const { page, limit, skip, take, search, productId, sizeId, colorId, stockStatus, sortBy, sortOrder } =
+    params;
+  const threshold = params.threshold ?? DEFAULT_LOW_STOCK_THRESHOLD;
+
+  const stockStatusFilter: Record<StockStatusFilter, Prisma.IntFilter> = {
+    out_of_stock: { lte: 0 },
+    low_stock: { gt: 0, lte: threshold },
+    in_stock: { gt: threshold },
+  };
 
   const where: Prisma.ProductVariantWhereInput = {
-    ...(sku ? { sku: { contains: sku, mode: 'insensitive' } } : {}),
+    ...(search?.trim()
+      ? {
+          OR: [
+            { sku: { contains: search, mode: 'insensitive' } },
+            { product: { name: { contains: search, mode: 'insensitive' } } },
+          ],
+        }
+      : {}),
     ...(productId ? { productId } : {}),
     ...(sizeId ? { sizeId } : {}),
     ...(colorId ? { colorId } : {}),
-    ...(productName ? { product: { name: { contains: productName, mode: 'insensitive' } } } : {}),
+    ...(stockStatus ? { stockQuantity: stockStatusFilter[stockStatus] } : {}),
   };
+
+  const orderBy: Prisma.ProductVariantOrderByWithRelationInput =
+    sortBy === 'stockQuantity' ? { stockQuantity: sortOrder === 'desc' ? 'desc' : 'asc' } : { createdAt: 'desc' };
 
   const [items, total] = await Promise.all([
     prisma.productVariant.findMany({
@@ -39,7 +64,7 @@ export async function listInventory(params: ListInventoryParams) {
       skip,
       take,
       include: variantInclude,
-      orderBy: { createdAt: 'desc' },
+      orderBy,
     }),
     prisma.productVariant.count({ where }),
   ]);

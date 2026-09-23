@@ -10,6 +10,11 @@ export const createProductSchema = z.object({
   mrp: z.number().nonnegative(),
   badge: z.string().max(50).optional().nullable(),
   status: z.enum(['ACTIVE', 'INACTIVE', 'DRAFT']).optional(),
+  gsm: z.number().int().positive().optional().nullable(),
+  fabric: z.string().max(255).optional().nullable(),
+  fit: z.enum(['REGULAR', 'SLIM', 'OVERSIZED', 'RELAXED']).optional().nullable(),
+  neckType: z.enum(['CREW', 'V_NECK', 'POLO', 'ROUND', 'MOCK']).optional().nullable(),
+  biowash: z.boolean().optional(),
 });
 
 export const updateProductSchema = createProductSchema.partial();

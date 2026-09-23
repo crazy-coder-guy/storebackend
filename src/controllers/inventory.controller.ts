@@ -6,22 +6,30 @@ import { sendSuccess } from '../utils/response';
 
 export const listInventory = asyncHandler(async (req: Request, res: Response) => {
   const { skip, take, page, limit } = parsePagination(req);
-  const sku = req.query.sku ? String(req.query.sku) : undefined;
+  const search = req.query.search ? String(req.query.search) : undefined;
   const productId = req.query.product_id ? String(req.query.product_id) : undefined;
-  const productName = req.query.product_name ? String(req.query.product_name) : undefined;
   const sizeId = req.query.size_id ? String(req.query.size_id) : undefined;
   const colorId = req.query.color_id ? String(req.query.color_id) : undefined;
+  const stockStatus = req.query.stock_status
+    ? (String(req.query.stock_status) as 'in_stock' | 'low_stock' | 'out_of_stock')
+    : undefined;
+  const threshold = req.query.threshold ? parseInt(String(req.query.threshold), 10) : undefined;
+  const sortBy = req.query.sortBy ? String(req.query.sortBy) : undefined;
+  const sortOrder = req.query.sortOrder === 'desc' ? 'desc' : 'asc';
 
   const result = await inventoryService.listInventory({
     page,
     limit,
     skip,
     take,
-    sku,
+    search,
     productId,
-    productName,
     sizeId,
     colorId,
+    stockStatus,
+    threshold: threshold !== undefined && Number.isFinite(threshold) ? threshold : undefined,
+    sortBy,
+    sortOrder,
   });
   return sendSuccess(res, result, 'Inventory fetched');
 });

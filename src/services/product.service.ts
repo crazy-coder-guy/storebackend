@@ -24,11 +24,25 @@ interface ListProductsParams {
   sortOrder?: 'asc' | 'desc';
 }
 
+function buildSearchFilter(search: string): Prisma.ProductWhereInput {
+  const term = search.trim();
+  const priceValue = term !== '' && !Number.isNaN(Number(term)) ? Number(term) : undefined;
+
+  return {
+    OR: [
+      { name: { contains: term, mode: 'insensitive' } },
+      { productType: { contains: term, mode: 'insensitive' } },
+      { variants: { some: { sku: { contains: term, mode: 'insensitive' } } } },
+      ...(priceValue !== undefined ? [{ basePrice: priceValue }, { mrp: priceValue }] : []),
+    ],
+  };
+}
+
 export async function listProducts(params: ListProductsParams) {
   const { page, limit, skip, take, search, categoryId, status, sortBy, sortOrder } = params;
 
   const where: Prisma.ProductWhereInput = {
-    ...(search ? { name: { contains: search, mode: 'insensitive' } } : {}),
+    ...(search?.trim() ? buildSearchFilter(search) : {}),
     ...(categoryId ? { categoryId } : {}),
     ...(status ? { status } : {}),
   };
@@ -36,10 +50,30 @@ export async function listProducts(params: ListProductsParams) {
   const sortField = sortBy && SORTABLE_FIELDS.has(sortBy) ? FIELD_MAP[sortBy] : 'createdAt';
   const orderBy = { [sortField]: sortOrder === 'asc' ? 'asc' : 'desc' } as Prisma.ProductOrderByWithRelationInput;
 
-  const [items, total] = await Promise.all([
-    prisma.product.findMany({ where, skip, take, orderBy, include: { category: true } }),
+  const [rawItems, total] = await Promise.all([
+    prisma.product.findMany({
+      where,
+      skip,
+      take,
+      orderBy,
+      include: {
+        category: true,
+        images: { orderBy: [{ isPrimary: 'desc' }, { sortOrder: 'asc' }], take: 1 },
+        variants: {
+          where: { status: 'ACTIVE' },
+          select: { size: true },
+        },
+      },
+    }),
     prisma.product.count({ where }),
   ]);
+
+  const items = rawItems.map(({ variants, ...product }) => {
+    const sizeMap = new Map<string, (typeof variants)[number]['size']>();
+    for (const variant of variants) sizeMap.set(variant.size.id, variant.size);
+    const sizes = [...sizeMap.values()].sort((a, b) => a.sortOrder - b.sortOrder);
+    return { ...product, sizes };
+  });
 
   return { items, meta: buildMeta(page, limit, total) };
 }
@@ -79,6 +113,11 @@ export async function createProduct(input: CreateProductInput) {
       mrp: input.mrp,
       badge: input.badge ?? null,
       status: input.status,
+      gsm: input.gsm ?? null,
+      fabric: input.fabric ?? null,
+      fit: input.fit ?? null,
+      neckType: input.neckType ?? null,
+      biowash: input.biowash ?? false,
     },
   });
 }
@@ -96,4 +135,16 @@ export async function updateProduct(id: string, input: UpdateProductInput) {
 export async function softDeleteProduct(id: string) {
   await getProductById(id);
   return prisma.product.update({ where: { id }, data: { status: 'INACTIVE' } });
+}
+
+export async function deleteProductPermanently(id: string) {
+  const product = await getProductById(id);
+  if (product.status !== 'INACTIVE') {
+    throw new AppError(
+      422,
+      'PRODUCT_NOT_INACTIVE',
+      'Deactivate the product before deleting it permanently'
+    );
+  }
+  await prisma.product.delete({ where: { id } });
 }

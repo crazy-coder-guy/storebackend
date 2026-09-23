@@ -32,6 +32,35 @@ enum TransactionType {
   ADJUSTMENT
 }
 
+enum ProductFit {
+  REGULAR
+  SLIM
+  OVERSIZED
+  RELAXED
+}
+
+enum NeckType {
+  CREW
+  V_NECK
+  POLO
+  ROUND
+  MOCK
+}
+
+enum OrderStatus {
+  PENDING
+  PROCESSING
+  SHIPPED
+  DELIVERED
+  CANCELLED
+}
+
+enum PaymentStatus {
+  PAID
+  UNPAID
+  REFUNDED
+}
+
 model Category {
   id          String       @id @default(uuid())
   name        String
@@ -58,6 +87,11 @@ model Product {
   mrp         Decimal
   badge       String?
   status      ProductStatus @default(DRAFT)
+  gsm         Int?
+  fabric      String?
+  fit         ProductFit?
+  neckType    NeckType?     @map("neck_type")
+  biowash     Boolean       @default(false)
   createdAt   DateTime      @default(now()) @map("created_at")
   updatedAt   DateTime      @updatedAt @map("updated_at")
 
@@ -131,6 +165,7 @@ model ProductVariant {
   color                  Color                  @relation(fields: [colorId], references: [id], onDelete: Restrict)
   size                   Size                   @relation(fields: [sizeId], references: [id], onDelete: Restrict)
   inventoryTransactions  InventoryTransaction[]
+  orderItems             OrderItem[]
 
   @@unique([productId, colorId, sizeId])
   @@index([productId])
@@ -191,4 +226,52 @@ model SearchLog {
   @@index([normalizedQuery])
   @@index([createdAt])
   @@map("search_logs")
+}
+
+model Customer {
+  id        String       @id @default(uuid())
+  name      String
+  email     String       @unique
+  phone     String
+  status    EntityStatus @default(ACTIVE)
+  createdAt DateTime     @default(now()) @map("created_at")
+  updatedAt DateTime     @updatedAt @map("updated_at")
+
+  orders Order[]
+
+  @@map("customers")
+}
+
+model Order {
+  id              String        @id @default(uuid())
+  orderNumber     String        @unique @map("order_number")
+  customerId      String        @map("customer_id")
+  status          OrderStatus   @default(PENDING)
+  paymentStatus   PaymentStatus @default(UNPAID) @map("payment_status")
+  totalAmount     Decimal       @map("total_amount")
+  shippingAddress String        @map("shipping_address")
+  createdAt       DateTime      @default(now()) @map("created_at")
+  updatedAt       DateTime      @updatedAt @map("updated_at")
+
+  customer Customer    @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  items    OrderItem[]
+
+  @@index([customerId])
+  @@index([status])
+  @@map("orders")
+}
+
+model OrderItem {
+  id        String  @id @default(uuid())
+  orderId   String  @map("order_id")
+  variantId String  @map("variant_id")
+  quantity  Int
+  unitPrice Decimal @map("unit_price")
+
+  order   Order          @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  variant ProductVariant @relation(fields: [variantId], references: [id], onDelete: Restrict)
+
+  @@index([orderId])
+  @@index([variantId])
+  @@map("order_items")
 }
