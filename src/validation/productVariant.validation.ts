@@ -6,6 +6,7 @@ export const createProductVariantSchema = z.object({
   sku: z.string().min(1).max(100).optional(),
   price: z.number().nonnegative().optional().nullable(),
   stockQuantity: z.number().int().nonnegative().optional(),
+  badge: z.string().max(50).optional().nullable(),
   status: z.enum(['ACTIVE', 'INACTIVE']).optional(),
 });
 

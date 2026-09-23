@@ -5,7 +5,9 @@ import dashboardRoutes from './dashboard.routes';
 import healthRoutes from './health.routes';
 import inventoryRoutes from './inventory.routes';
 import productRoutes from './product.routes';
+import searchRoutes from './search.routes';
 import sizeRoutes from './size.routes';
+import storefrontRoutes from './storefront.routes';
 
 const router = Router();
 
@@ -18,6 +20,8 @@ v1.use('/sizes', sizeRoutes);
 v1.use('/colors', colorRoutes);
 v1.use('/inventory', inventoryRoutes);
 v1.use('/dashboard', dashboardRoutes);
+v1.use('/storefront', storefrontRoutes);
+v1.use('/search', searchRoutes);
 
 router.use('/v1', v1);
 

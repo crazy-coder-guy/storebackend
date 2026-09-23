@@ -58,6 +58,7 @@ const categorySchema = {
     name: { type: 'string' },
     slug: { type: 'string' },
     description: { type: 'string', nullable: true },
+    badge: { type: 'string', nullable: true, description: 'e.g. "New", "Bestseller"' },
     status: { type: 'string', enum: entityStatusEnum },
     createdAt: { type: 'string', format: 'date-time' },
     updatedAt: { type: 'string', format: 'date-time' },
@@ -71,6 +72,7 @@ const categoryCreateSchema = {
     name: { type: 'string' },
     slug: { type: 'string' },
     description: { type: 'string', nullable: true },
+    badge: { type: 'string', nullable: true },
     status: { type: 'string', enum: entityStatusEnum },
   },
 };
@@ -130,6 +132,7 @@ const productSchema = {
     productType: { type: 'string' },
     basePrice: { type: 'number' },
     mrp: { type: 'number' },
+    badge: { type: 'string', nullable: true, description: 'e.g. "New", "Bestseller"' },
     status: { type: 'string', enum: ['ACTIVE', 'INACTIVE', 'DRAFT'] },
     createdAt: { type: 'string', format: 'date-time' },
     updatedAt: { type: 'string', format: 'date-time' },
@@ -161,6 +164,7 @@ const productCreateSchema = {
     productType: { type: 'string' },
     basePrice: { type: 'number' },
     mrp: { type: 'number' },
+    badge: { type: 'string', nullable: true },
     status: { type: 'string', enum: ['ACTIVE', 'INACTIVE', 'DRAFT'] },
   },
 };
@@ -199,6 +203,7 @@ const productVariantSchema = {
     sku: { type: 'string' },
     price: { type: 'number', nullable: true },
     stockQuantity: { type: 'integer' },
+    badge: { type: 'string', nullable: true, description: 'e.g. "New", "Bestseller"' },
     status: { type: 'string', enum: entityStatusEnum },
     color: colorSchema,
     size: sizeSchema,
@@ -214,6 +219,7 @@ const productVariantCreateSchema = {
     sku: { type: 'string', description: 'Optional; auto-generated as SLUG-COLORCODE-SIZECODE if omitted' },
     price: { type: 'number', nullable: true },
     stockQuantity: { type: 'integer', default: 0 },
+    badge: { type: 'string', nullable: true },
     status: { type: 'string', enum: entityStatusEnum },
   },
 };
@@ -736,6 +742,174 @@ const dashboardSummarySchema = {
   },
 };
 
+const storefrontSettingsSchema = {
+  type: 'object',
+  properties: {
+    id: { type: 'string', example: 'default' },
+    announcementText: { type: 'string' },
+    heroTitle: { type: 'string' },
+    heroSubtitle: { type: 'string' },
+    updatedAt: { type: 'string', format: 'date-time' },
+  },
+};
+
+const updateStorefrontSettingsRequestSchema = {
+  type: 'object',
+  properties: {
+    announcementText: { type: 'string' },
+    heroTitle: { type: 'string' },
+    heroSubtitle: { type: 'string' },
+  },
+};
+
+const featuredProductSchema = {
+  type: 'object',
+  properties: {
+    id: { type: 'string', format: 'uuid' },
+    productId: { type: 'string', format: 'uuid' },
+    sortOrder: { type: 'integer' },
+    createdAt: { type: 'string', format: 'date-time' },
+    product: productDetailSchema,
+  },
+};
+
+const setFeaturedProductsRequestSchema = {
+  type: 'object',
+  required: ['productIds'],
+  properties: {
+    productIds: {
+      type: 'array',
+      items: { type: 'string', format: 'uuid' },
+      description: 'Full replacement list, in display order. Any number of products may be selected.',
+    },
+  },
+};
+
+const storefrontPaths = {
+  '/v1/storefront/settings': {
+    get: {
+      tags: ['Storefront'],
+      summary: 'Get the customer storefront announcement bar and hero copy',
+      responses: {
+        '200': {
+          description: 'Storefront settings fetched',
+          content: { 'application/json': { schema: successEnvelope(storefrontSettingsSchema) } },
+        },
+      },
+    },
+    patch: {
+      tags: ['Storefront'],
+      summary: 'Update the announcement bar and/or hero copy',
+      requestBody: {
+        content: { 'application/json': { schema: updateStorefrontSettingsRequestSchema } },
+      },
+      responses: {
+        '200': {
+          description: 'Storefront settings updated',
+          content: { 'application/json': { schema: successEnvelope(storefrontSettingsSchema) } },
+        },
+        ...errorResponses,
+      },
+    },
+  },
+  '/v1/storefront/featured-products': {
+    get: {
+      tags: ['Storefront'],
+      summary: 'List the products selected as "Top Selling" on the storefront, in display order',
+      responses: {
+        '200': {
+          description: 'Featured products fetched',
+          content: {
+            'application/json': { schema: successEnvelope({ type: 'array', items: featuredProductSchema }) },
+          },
+        },
+      },
+    },
+    put: {
+      tags: ['Storefront'],
+      summary: 'Replace the full set of "Top Selling" products (any number may be selected)',
+      requestBody: {
+        content: { 'application/json': { schema: setFeaturedProductsRequestSchema } },
+      },
+      responses: {
+        '200': {
+          description: 'Featured products updated',
+          content: {
+            'application/json': { schema: successEnvelope({ type: 'array', items: featuredProductSchema }) },
+          },
+        },
+        ...errorResponses,
+      },
+    },
+  },
+};
+
+const searchResultItemSchema = {
+  type: 'object',
+  properties: {
+    id: { type: 'string', format: 'uuid' },
+    name: { type: 'string' },
+    slug: { type: 'string' },
+    basePrice: { type: 'number' },
+    mrp: { type: 'number' },
+    badge: { type: 'string', nullable: true },
+    categoryName: { type: 'string' },
+    image: { type: 'string', nullable: true },
+  },
+};
+
+const topSearchItemSchema = {
+  type: 'object',
+  properties: {
+    term: { type: 'string' },
+    searchCount: { type: 'integer' },
+    avgResults: { type: 'number' },
+    lastSearchedAt: { type: 'string', format: 'date-time' },
+  },
+};
+
+const searchPaths = {
+  '/v1/search/top': {
+    get: {
+      tags: ['Search'],
+      summary:
+        'Admin-facing: most-searched terms on the storefront over a time window, with average result count (useful for spotting zero-result catalog gaps)',
+      parameters: [
+        { name: 'days', in: 'query', schema: { type: 'integer', default: 30 } },
+        { name: 'limit', in: 'query', schema: { type: 'integer', default: 50, maximum: 200 } },
+      ],
+      responses: {
+        '200': {
+          description: 'Top searches fetched',
+          content: {
+            'application/json': { schema: successEnvelope({ type: 'array', items: topSearchItemSchema }) },
+          },
+        },
+      },
+    },
+  },
+  '/v1/search': {
+    get: {
+      tags: ['Search'],
+      summary:
+        'Fuzzy, ranked product search (typo-tolerant via PostgreSQL trigram similarity) across name, description, category, and product type. ACTIVE products only.',
+      parameters: [
+        { name: 'q', in: 'query', required: true, schema: { type: 'string' } },
+        pageParam,
+        limitParam,
+      ],
+      responses: {
+        '200': {
+          description: 'Search results fetched',
+          content: {
+            'application/json': { schema: successEnvelope(listResponse(searchResultItemSchema)) },
+          },
+        },
+      },
+    },
+  },
+};
+
 const dashboardPaths = {
   '/v1/dashboard/summary': {
     get: {
@@ -770,6 +944,8 @@ export const openApiSpec = {
     { name: 'Colors' },
     { name: 'Inventory' },
     { name: 'Dashboard' },
+    { name: 'Storefront' },
+    { name: 'Search' },
   ],
   components: {
     schemas: {
@@ -812,5 +988,7 @@ export const openApiSpec = {
     ...colorsPaths,
     ...inventoryPaths,
     ...dashboardPaths,
+    ...storefrontPaths,
+    ...searchPaths,
   },
 };

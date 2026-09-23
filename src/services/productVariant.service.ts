@@ -89,6 +89,7 @@ export async function createProductVariant(productId: string, input: CreateProdu
       sku,
       price: input.price ?? null,
       stockQuantity: input.stockQuantity ?? 0,
+      badge: input.badge ?? null,
       status: input.status,
     },
     include: { color: true, size: true },

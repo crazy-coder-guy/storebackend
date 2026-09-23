@@ -43,6 +43,7 @@ export async function createCategory(input: CreateCategoryInput) {
       name: input.name,
       slug,
       description: input.description ?? null,
+      badge: input.badge ?? null,
       status: input.status,
     },
   });

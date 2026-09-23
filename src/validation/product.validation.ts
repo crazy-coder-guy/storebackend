@@ -8,6 +8,7 @@ export const createProductSchema = z.object({
   productType: z.string().min(1).max(100),
   basePrice: z.number().nonnegative(),
   mrp: z.number().nonnegative(),
+  badge: z.string().max(50).optional().nullable(),
   status: z.enum(['ACTIVE', 'INACTIVE', 'DRAFT']).optional(),
 });
 

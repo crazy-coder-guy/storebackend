@@ -77,6 +77,7 @@ export async function createProduct(input: CreateProductInput) {
       productType: input.productType,
       basePrice: input.basePrice,
       mrp: input.mrp,
+      badge: input.badge ?? null,
       status: input.status,
     },
   });

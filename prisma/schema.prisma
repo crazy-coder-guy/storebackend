@@ -37,6 +37,7 @@ model Category {
   name        String
   slug        String       @unique
   description String?
+  badge       String?
   status      EntityStatus @default(ACTIVE)
   createdAt   DateTime     @default(now()) @map("created_at")
   updatedAt   DateTime     @updatedAt @map("updated_at")
@@ -55,6 +56,7 @@ model Product {
   productType String        @map("product_type")
   basePrice   Decimal       @map("base_price")
   mrp         Decimal
+  badge       String?
   status      ProductStatus @default(DRAFT)
   createdAt   DateTime      @default(now()) @map("created_at")
   updatedAt   DateTime      @updatedAt @map("updated_at")
@@ -62,6 +64,7 @@ model Product {
   category Category         @relation(fields: [categoryId], references: [id], onDelete: Restrict)
   images   ProductImage[]
   variants ProductVariant[]
+  featured FeaturedProduct?
 
   @@index([categoryId])
   @@index([status])
@@ -119,6 +122,7 @@ model ProductVariant {
   sku           String       @unique
   price         Decimal?
   stockQuantity Int          @default(0) @map("stock_quantity")
+  badge         String?
   status        EntityStatus @default(ACTIVE)
   createdAt     DateTime     @default(now()) @map("created_at")
   updatedAt     DateTime     @updatedAt @map("updated_at")
@@ -149,4 +153,42 @@ model InventoryTransaction {
 
   @@index([variantId])
   @@map("inventory_transactions")
+}
+
+// Singleton row (id is always "default") holding the customer storefront's
+// editable copy — the top announcement bar and homepage hero text.
+model StorefrontSetting {
+  id               String   @id @default("default")
+  announcementText String   @map("announcement_text")
+  heroTitle        String   @map("hero_title")
+  heroSubtitle     String   @map("hero_subtitle")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  @@map("storefront_settings")
+}
+
+model FeaturedProduct {
+  id        String   @id @default(uuid())
+  productId String   @unique @map("product_id")
+  sortOrder Int      @default(0) @map("sort_order")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@index([sortOrder])
+  @@map("featured_products")
+}
+
+// One row per search performed on the customer storefront, so the admin can
+// see what people are actually searching for (and spot zero-result gaps).
+model SearchLog {
+  id              String   @id @default(uuid())
+  query           String
+  normalizedQuery String   @map("normalized_query")
+  resultsCount    Int      @map("results_count")
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  @@index([normalizedQuery])
+  @@index([createdAt])
+  @@map("search_logs")
 }
