@@ -20,8 +20,13 @@ if (!DB_USER || !DB_PASSWORD || !DB_HOST || !DB_NAME) {
 }
 
 const port = DB_PORT || '5432';
-const sslParam = DB_SSL === 'true' ? '?sslmode=require' : '';
-const url = `postgresql://${encodeURIComponent(DB_USER)}:${encodeURIComponent(DB_PASSWORD)}@${DB_HOST}:${port}/${DB_NAME}${sslParam}`;
+const params = new URLSearchParams();
+if (DB_SSL === 'true') params.set('sslmode', 'require');
+params.set('connection_limit', '10');
+params.set('pool_timeout', '10');
+if (port === '6543') params.set('pgbouncer', 'true');
+const queryString = params.toString() ? `?${params.toString()}` : '';
+const url = `postgresql://${encodeURIComponent(DB_USER)}:${encodeURIComponent(DB_PASSWORD)}@${DB_HOST}:${port}/${DB_NAME}${queryString}`;
 
 const args = process.argv.slice(2);
 if (args.length === 0) {

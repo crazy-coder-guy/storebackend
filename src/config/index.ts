@@ -13,8 +13,16 @@ function buildDatabaseUrl(): string {
   const { DB_USER, DB_PASSWORD, DB_HOST, DB_PORT, DB_NAME, DB_SSL } = process.env;
   if (!DB_USER || !DB_PASSWORD || !DB_HOST || !DB_NAME) return '';
   const port = DB_PORT || '5432';
-  const sslParam = DB_SSL === 'true' ? '?sslmode=require' : '';
-  return `postgresql://${encodeURIComponent(DB_USER)}:${encodeURIComponent(DB_PASSWORD)}@${DB_HOST}:${port}/${DB_NAME}${sslParam}`;
+  const params = new URLSearchParams();
+  if (DB_SSL === 'true') params.set('sslmode', 'require');
+  // Optimize connection pool for Node.js serverless/PaaS (Render & Supabase)
+  // Keeps active connections bounded and reduces connect handshake overhead
+  params.set('connection_limit', '10');
+  params.set('pool_timeout', '10');
+  if (port === '6543') params.set('pgbouncer', 'true');
+
+  const queryString = params.toString() ? `?${params.toString()}` : '';
+  return `postgresql://${encodeURIComponent(DB_USER)}:${encodeURIComponent(DB_PASSWORD)}@${DB_HOST}:${port}/${DB_NAME}${queryString}`;
 }
 
 if (!process.env.DATABASE_URL) process.env.DATABASE_URL = buildDatabaseUrl();
