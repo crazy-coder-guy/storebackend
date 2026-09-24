@@ -939,6 +939,68 @@ const storefrontPaths = {
       },
     },
   },
+  '/v1/storefront/products': {
+    get: {
+      tags: ['Storefront'],
+      summary: 'List products for the customer "All Products" page (always ACTIVE-only, with shopper-facing filters)',
+      parameters: [
+        pageParam,
+        limitParam,
+        {
+          name: 'search',
+          in: 'query',
+          description: 'Matches against product name, product type, variant SKU, and (when numeric) base price or MRP.',
+          schema: { type: 'string' },
+        },
+        {
+          name: 'category_id',
+          in: 'query',
+          description: 'One or more category IDs, comma-separated.',
+          schema: { type: 'string' },
+        },
+        {
+          name: 'color_id',
+          in: 'query',
+          description: 'One or more color IDs, comma-separated. Matches products with at least one ACTIVE variant in any of these colors.',
+          schema: { type: 'string' },
+        },
+        {
+          name: 'size_id',
+          in: 'query',
+          description: 'One or more size IDs, comma-separated. Matches products with at least one ACTIVE variant in any of these sizes.',
+          schema: { type: 'string' },
+        },
+        {
+          name: 'fit',
+          in: 'query',
+          description: 'One or more fit types, comma-separated.',
+          schema: { type: 'string' },
+        },
+        {
+          name: 'neck_type',
+          in: 'query',
+          description: 'One or more neck/style types, comma-separated.',
+          schema: { type: 'string' },
+        },
+        { name: 'min_price', in: 'query', schema: { type: 'number' } },
+        { name: 'max_price', in: 'query', schema: { type: 'number' } },
+        {
+          name: 'in_stock',
+          in: 'query',
+          description: 'When "true", only include products with at least one ACTIVE variant that has stock.',
+          schema: { type: 'boolean' },
+        },
+        { name: 'sortBy', in: 'query', schema: { type: 'string', enum: ['created_at', 'base_price', 'name'] } },
+        { name: 'sortOrder', in: 'query', schema: { type: 'string', enum: ['asc', 'desc'] } },
+      ],
+      responses: {
+        '200': {
+          description: 'Products fetched',
+          content: { 'application/json': { schema: successEnvelope(listResponse(productSchema)) } },
+        },
+      },
+    },
+  },
 };
 
 const searchResultItemSchema = {

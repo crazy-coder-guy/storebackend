@@ -5,6 +5,7 @@ import {
   setFeaturedProducts,
   updateSettings,
 } from '../controllers/storefront.controller';
+import { listStorefrontProducts } from '../controllers/product.controller';
 import { validate } from '../middleware/validate';
 import {
   setFeaturedProductsSchema,
@@ -18,5 +19,7 @@ router.patch('/settings', validate(updateStorefrontSettingsSchema), updateSettin
 
 router.get('/featured-products', getFeaturedProducts);
 router.put('/featured-products', validate(setFeaturedProductsSchema), setFeaturedProducts);
+
+router.get('/products', listStorefrontProducts);
 
 export default router;

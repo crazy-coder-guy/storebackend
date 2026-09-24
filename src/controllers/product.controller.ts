@@ -4,6 +4,21 @@ import { asyncHandler } from '../utils/asyncHandler';
 import { parsePagination } from '../utils/pagination';
 import { sendSuccess } from '../utils/response';
 
+const VALID_FITS = new Set(['REGULAR', 'SLIM', 'OVERSIZED', 'RELAXED']);
+const VALID_NECK_TYPES = new Set(['CREW', 'V_NECK', 'POLO', 'ROUND', 'MOCK']);
+
+function parseCsv(value: unknown): string[] | undefined {
+  if (!value) return undefined;
+  const items = String(value).split(',').map((v) => v.trim()).filter(Boolean);
+  return items.length > 0 ? items : undefined;
+}
+
+function parseNumber(value: unknown): number | undefined {
+  if (value === undefined || value === '') return undefined;
+  const num = Number(value);
+  return Number.isFinite(num) ? num : undefined;
+}
+
 export const listProducts = asyncHandler(async (req: Request, res: Response) => {
   const { skip, take, page, limit } = parsePagination(req);
   const search = req.query.search ? String(req.query.search) : undefined;
@@ -28,6 +43,49 @@ export const listProducts = asyncHandler(async (req: Request, res: Response) => 
     sortBy,
     sortOrder,
     ids,
+  });
+  return sendSuccess(res, result, 'Products fetched');
+});
+
+/**
+ * Public "All Products" listing for the customer storefront — always
+ * ACTIVE-only (unlike the admin listProducts above, which exposes every
+ * status), with the extra filters a shopper-facing filter sidebar needs:
+ * category, color, size, fit, neck type, price range, and in-stock only.
+ */
+export const listStorefrontProducts = asyncHandler(async (req: Request, res: Response) => {
+  const { skip, take, page, limit } = parsePagination(req);
+  const search = req.query.search ? String(req.query.search) : undefined;
+  const sortBy = req.query.sortBy ? String(req.query.sortBy) : undefined;
+  const sortOrder = req.query.sortOrder === 'asc' ? 'asc' : 'desc';
+
+  const categoryIdList = parseCsv(req.query.category_id);
+  const colorIds = parseCsv(req.query.color_id);
+  const sizeIds = parseCsv(req.query.size_id);
+  const fits = parseCsv(req.query.fit)?.filter((f) => VALID_FITS.has(f));
+  const neckTypes = parseCsv(req.query.neck_type)?.filter((n) => VALID_NECK_TYPES.has(n));
+  const minPrice = parseNumber(req.query.min_price);
+  const maxPrice = parseNumber(req.query.max_price);
+  const inStock = req.query.in_stock === 'true';
+
+  const result = await productService.listProducts({
+    page,
+    limit,
+    skip,
+    take,
+    search,
+    status: 'ACTIVE',
+    sortBy,
+    sortOrder,
+    categoryId: categoryIdList && categoryIdList.length === 1 ? categoryIdList[0] : undefined,
+    categoryIds: categoryIdList && categoryIdList.length > 1 ? categoryIdList : undefined,
+    colorIds,
+    sizeIds,
+    fits,
+    neckTypes,
+    minPrice,
+    maxPrice,
+    inStock,
   });
   return sendSuccess(res, result, 'Products fetched');
 });

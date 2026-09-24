@@ -1,4 +1,4 @@
-import { Prisma } from '@prisma/client';
+import { Prisma, ProductFit, NeckType } from '@prisma/client';
 import { prisma } from '../database/prisma';
 import { AppError } from '../utils/AppError';
 import { buildMeta } from '../utils/pagination';
@@ -19,10 +19,18 @@ interface ListProductsParams {
   take: number;
   search?: string;
   categoryId?: string;
+  categoryIds?: string[];
   status?: 'ACTIVE' | 'INACTIVE' | 'DRAFT';
   sortBy?: string;
   sortOrder?: 'asc' | 'desc';
   ids?: string[];
+  colorIds?: string[];
+  sizeIds?: string[];
+  fits?: string[];
+  neckTypes?: string[];
+  minPrice?: number;
+  maxPrice?: number;
+  inStock?: boolean;
 }
 
 function buildSearchFilter(search: string): Prisma.ProductWhereInput {
@@ -40,13 +48,60 @@ function buildSearchFilter(search: string): Prisma.ProductWhereInput {
 }
 
 export async function listProducts(params: ListProductsParams) {
-  const { page, limit, skip, take, search, categoryId, status, sortBy, sortOrder, ids } = params;
+  const {
+    page,
+    limit,
+    skip,
+    take,
+    search,
+    categoryId,
+    categoryIds,
+    status,
+    sortBy,
+    sortOrder,
+    ids,
+    colorIds,
+    sizeIds,
+    fits,
+    neckTypes,
+    minPrice,
+    maxPrice,
+    inStock,
+  } = params;
+
+  const priceFilter: Prisma.ProductWhereInput =
+    minPrice !== undefined || maxPrice !== undefined
+      ? {
+          basePrice: {
+            ...(minPrice !== undefined ? { gte: minPrice } : {}),
+            ...(maxPrice !== undefined ? { lte: maxPrice } : {}),
+          },
+        }
+      : {};
+
+  // Color/size/stock only make sense as "does this product have a matching
+  // variant", so they fold into one variants.some(...) filter instead of
+  // separate top-level clauses.
+  const needsVariantFilter = Boolean(
+    (colorIds && colorIds.length > 0) || (sizeIds && sizeIds.length > 0) || inStock
+  );
+  const variantFilter: Prisma.ProductVariantWhereInput = {
+    status: 'ACTIVE',
+    ...(colorIds && colorIds.length > 0 ? { colorId: { in: colorIds } } : {}),
+    ...(sizeIds && sizeIds.length > 0 ? { sizeId: { in: sizeIds } } : {}),
+    ...(inStock ? { stockQuantity: { gt: 0 } } : {}),
+  };
 
   const where: Prisma.ProductWhereInput = {
     ...(search?.trim() ? buildSearchFilter(search) : {}),
     ...(categoryId ? { categoryId } : {}),
+    ...(categoryIds && categoryIds.length > 0 ? { categoryId: { in: categoryIds } } : {}),
     ...(status ? { status } : {}),
     ...(ids && ids.length > 0 ? { id: { in: ids } } : {}),
+    ...(fits && fits.length > 0 ? { fit: { in: fits as ProductFit[] } } : {}),
+    ...(neckTypes && neckTypes.length > 0 ? { neckType: { in: neckTypes as NeckType[] } } : {}),
+    ...priceFilter,
+    ...(needsVariantFilter ? { variants: { some: variantFilter } } : {}),
   };
 
   const sortField = sortBy && SORTABLE_FIELDS.has(sortBy) ? FIELD_MAP[sortBy] : 'createdAt';
