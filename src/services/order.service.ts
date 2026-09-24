@@ -189,8 +189,6 @@ export async function createOrder(input: CreateOrderInput) {
   });
 
   const created = await getOrderById(orderId);
-  // Fire-and-forget: notifyOrderPlaced already swallows its own errors, and
-  // checkout must never wait on (or fail because of) a push delivery.
   void orderNotificationService.notifyOrderPlaced(created);
   return created;
 }

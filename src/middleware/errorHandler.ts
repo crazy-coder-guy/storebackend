@@ -17,7 +17,7 @@ function codeForUniqueViolation(target: string[] | undefined): string {
   return 'DUPLICATE_ENTRY';
 }
 
-export function errorHandler(err: Error, _req: Request, res: Response, _next: NextFunction) {
+export function errorHandler(err: Error, req: Request, res: Response, _next: NextFunction) {
   if (err instanceof AppError) {
     return res.status(err.statusCode).json({
       success: false,
@@ -57,7 +57,7 @@ export function errorHandler(err: Error, _req: Request, res: Response, _next: Ne
     }
   }
 
-  console.error(err);
+  console.error(`[500] ${req.method} ${req.originalUrl}`, err);
   return res.status(500).json({
     success: false,
     message: 'Internal Server Error',
