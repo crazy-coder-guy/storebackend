@@ -1,21 +1,30 @@
 import { prisma } from '../database/prisma';
+import { AppError } from '../utils/AppError';
 import { webPush } from '../lib/webPush';
 import { buildMeta } from '../utils/pagination';
-import { SendNotificationInput, SubscribeInput, UnsubscribeInput } from '../validation/push.validation';
+import {
+  CreateTemplateInput,
+  SendNotificationInput,
+  SubscribeInput,
+  UnsubscribeInput,
+} from '../validation/push.validation';
 
-export async function subscribe(input: SubscribeInput) {
+export async function subscribe(input: SubscribeInput, authedUserId: string | null) {
+  // A signed-in caller's real user id always wins — the client can't be
+  // trusted to self-report which user it is.
+  const userId = authedUserId ?? input.userId ?? null;
   return prisma.pushSubscription.upsert({
     where: { endpoint: input.endpoint },
     update: {
       p256dh: input.keys.p256dh,
       auth: input.keys.auth,
-      userId: input.userId ?? null,
+      userId,
     },
     create: {
       endpoint: input.endpoint,
       p256dh: input.keys.p256dh,
       auth: input.keys.auth,
-      userId: input.userId ?? null,
+      userId,
     },
   });
 }
@@ -24,8 +33,31 @@ export async function unsubscribe(input: UnsubscribeInput) {
   await prisma.pushSubscription.deleteMany({ where: { endpoint: input.endpoint } });
 }
 
+// Users who have at least one active push subscription — the only people an
+// admin can meaningfully target, since anyone else has nothing to send to.
+export async function listSubscribers() {
+  const subscriptions = await prisma.pushSubscription.findMany({
+    where: { userId: { not: null } },
+    include: { user: { select: { id: true, name: true, email: true, photoUrl: true } } },
+    orderBy: { createdAt: 'desc' },
+  });
+
+  const seen = new Map<string, (typeof subscriptions)[number]['user']>();
+  for (const sub of subscriptions) {
+    if (sub.user && !seen.has(sub.user.id)) seen.set(sub.user.id, sub.user);
+  }
+  return Array.from(seen.values());
+}
+
 export async function sendNotification(input: SendNotificationInput) {
-  const subscriptions = await prisma.pushSubscription.findMany();
+  if (input.userId) {
+    const user = await prisma.user.findUnique({ where: { id: input.userId } });
+    if (!user) throw new AppError(422, 'INVALID_USER', 'userId does not reference an existing user');
+  }
+
+  const subscriptions = await prisma.pushSubscription.findMany({
+    where: input.userId ? { userId: input.userId } : undefined,
+  });
 
   const payload = JSON.stringify({
     title: input.title,
@@ -66,6 +98,7 @@ export async function sendNotification(input: SendNotificationInput) {
       title: input.title,
       body: input.body,
       url: input.url ?? null,
+      targetUserId: input.userId ?? null,
       successCount,
       failureCount,
     },
@@ -88,4 +121,25 @@ export async function listNotifications(page: number, limit: number, skip: numbe
 
 export async function getSubscriberCount() {
   return prisma.pushSubscription.count();
+}
+
+export async function listTemplates() {
+  return prisma.notificationTemplate.findMany({ orderBy: { createdAt: 'desc' } });
+}
+
+export async function createTemplate(input: CreateTemplateInput) {
+  return prisma.notificationTemplate.create({
+    data: {
+      name: input.name,
+      title: input.title,
+      body: input.body,
+      url: input.url ?? null,
+    },
+  });
+}
+
+export async function deleteTemplate(id: string) {
+  const template = await prisma.notificationTemplate.findUnique({ where: { id } });
+  if (!template) throw new AppError(404, 'NOT_FOUND', 'Template not found');
+  await prisma.notificationTemplate.delete({ where: { id } });
 }

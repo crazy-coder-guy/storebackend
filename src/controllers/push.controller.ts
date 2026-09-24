@@ -5,8 +5,13 @@ import { parsePagination } from '../utils/pagination';
 import { sendSuccess } from '../utils/response';
 
 export const subscribe = asyncHandler(async (req: Request, res: Response) => {
-  const subscription = await pushService.subscribe(req.body);
+  const subscription = await pushService.subscribe(req.body, req.authUser?.id ?? null);
   return sendSuccess(res, subscription, 'Subscribed to push notifications', 201);
+});
+
+export const listSubscribers = asyncHandler(async (_req: Request, res: Response) => {
+  const subscribers = await pushService.listSubscribers();
+  return sendSuccess(res, subscribers, 'Subscribers fetched');
 });
 
 export const unsubscribe = asyncHandler(async (req: Request, res: Response) => {
@@ -28,4 +33,19 @@ export const listNotifications = asyncHandler(async (req: Request, res: Response
 export const getSubscriberCount = asyncHandler(async (_req: Request, res: Response) => {
   const count = await pushService.getSubscriberCount();
   return sendSuccess(res, { count }, 'Subscriber count fetched');
+});
+
+export const listTemplates = asyncHandler(async (_req: Request, res: Response) => {
+  const templates = await pushService.listTemplates();
+  return sendSuccess(res, templates, 'Templates fetched');
+});
+
+export const createTemplate = asyncHandler(async (req: Request, res: Response) => {
+  const template = await pushService.createTemplate(req.body);
+  return sendSuccess(res, template, 'Template created', 201);
+});
+
+export const deleteTemplate = asyncHandler(async (req: Request, res: Response) => {
+  await pushService.deleteTemplate(req.params.id);
+  return sendSuccess(res, null, 'Template deleted');
 });

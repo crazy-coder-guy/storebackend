@@ -329,11 +329,24 @@ model PushNotification {
   title        String
   body         String
   url          String?
+  targetUserId String?  @map("target_user_id")
   successCount Int      @default(0) @map("success_count")
   failureCount Int      @default(0) @map("failure_count")
   createdAt    DateTime @default(now()) @map("created_at")
 
   @@map("push_notifications")
+}
+
+model NotificationTemplate {
+  id        String   @id @default(uuid())
+  name      String
+  title     String
+  body      String
+  url       String?
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("notification_templates")
 }
 
 model Cart {

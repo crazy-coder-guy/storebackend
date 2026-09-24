@@ -28,38 +28,21 @@ interface CachedUser {
 const authCache = new Map<string, CachedUser>();
 const AUTH_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
 
-/**
- * Verifies the Firebase (Google Sign-In) ID token in the Authorization
- * header, and upserts a local User row for it — so the very first
- * authenticated request from a new Google account transparently creates
- * their storefront account.
- */
-export const requireAuth = asyncHandler(async (req: Request, _res: Response, next: NextFunction) => {
-  const header = req.headers.authorization;
-  if (!header?.startsWith('Bearer ')) {
-    throw new AppError(401, 'UNAUTHORIZED', 'Missing bearer token');
-  }
-
-  const idToken = header.slice('Bearer '.length);
-
-  // Fast-path: check in-memory cache
+async function resolveAuthUser(idToken: string): Promise<AuthUser | null> {
   const now = Date.now();
   const cached = authCache.get(idToken);
   if (cached && cached.expiresAt > now) {
-    req.authUser = cached.user;
-    return next();
+    return cached.user;
   }
 
   let decoded;
   try {
     decoded = await firebaseAuth.verifyIdToken(idToken);
   } catch {
-    throw new AppError(401, 'UNAUTHORIZED', 'Invalid or expired sign-in token');
+    return null;
   }
 
-  if (!decoded.email) {
-    throw new AppError(401, 'UNAUTHORIZED', 'Google account has no email address');
-  }
+  if (!decoded.email) return null;
 
   const user = await prisma.user.upsert({
     where: { firebaseUid: decoded.uid },
@@ -86,6 +69,40 @@ export const requireAuth = asyncHandler(async (req: Request, _res: Response, nex
     }
   }
 
+  return authUser;
+}
+
+/**
+ * Verifies the Firebase (Google Sign-In) ID token in the Authorization
+ * header, and upserts a local User row for it — so the very first
+ * authenticated request from a new Google account transparently creates
+ * their storefront account.
+ */
+export const requireAuth = asyncHandler(async (req: Request, _res: Response, next: NextFunction) => {
+  const header = req.headers.authorization;
+  if (!header?.startsWith('Bearer ')) {
+    throw new AppError(401, 'UNAUTHORIZED', 'Missing bearer token');
+  }
+
+  const authUser = await resolveAuthUser(header.slice('Bearer '.length));
+  if (!authUser) {
+    throw new AppError(401, 'UNAUTHORIZED', 'Invalid or expired sign-in token');
+  }
+
   req.authUser = authUser;
+  next();
+});
+
+/**
+ * Like requireAuth, but never rejects the request — used by endpoints that
+ * work for signed-out visitors too, but want to know who the caller is when
+ * they happen to be signed in (e.g. tying a push subscription to a user).
+ */
+export const optionalAuth = asyncHandler(async (req: Request, _res: Response, next: NextFunction) => {
+  const header = req.headers.authorization;
+  if (header?.startsWith('Bearer ')) {
+    const authUser = await resolveAuthUser(header.slice('Bearer '.length));
+    if (authUser) req.authUser = authUser;
+  }
   next();
 });
