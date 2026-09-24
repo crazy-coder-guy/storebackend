@@ -3,6 +3,7 @@ import { prisma } from '../database/prisma';
 import { AppError } from '../utils/AppError';
 import { buildMeta } from '../utils/pagination';
 import { CreateOrderInput } from '../validation/order.validation';
+import * as orderNotificationService from './orderNotification.service';
 
 interface ListOrdersParams {
   page: number;
@@ -187,11 +188,16 @@ export async function createOrder(input: CreateOrderInput) {
     return order.id;
   });
 
-  return getOrderById(orderId);
+  const created = await getOrderById(orderId);
+  // Fire-and-forget: notifyOrderPlaced already swallows its own errors, and
+  // checkout must never wait on (or fail because of) a push delivery.
+  void orderNotificationService.notifyOrderPlaced(created);
+  return created;
 }
 
 export async function updateOrderStatus(id: string, status: OrderStatus) {
   const order = await getOrderRaw(id);
+  const statusChanged = order.status !== status;
 
   if (status === 'CANCELLED' && order.status !== 'CANCELLED') {
     await prisma.$transaction(async (tx) => {
@@ -217,5 +223,9 @@ export async function updateOrderStatus(id: string, status: OrderStatus) {
     await prisma.order.update({ where: { id }, data: { status } });
   }
 
-  return getOrderById(id);
+  const updated = await getOrderById(id);
+  if (statusChanged) {
+    void orderNotificationService.notifyOrderStatusChanged(updated);
+  }
+  return updated;
 }
