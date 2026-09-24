@@ -22,6 +22,7 @@ interface ListProductsParams {
   status?: 'ACTIVE' | 'INACTIVE' | 'DRAFT';
   sortBy?: string;
   sortOrder?: 'asc' | 'desc';
+  ids?: string[];
 }
 
 function buildSearchFilter(search: string): Prisma.ProductWhereInput {
@@ -39,12 +40,13 @@ function buildSearchFilter(search: string): Prisma.ProductWhereInput {
 }
 
 export async function listProducts(params: ListProductsParams) {
-  const { page, limit, skip, take, search, categoryId, status, sortBy, sortOrder } = params;
+  const { page, limit, skip, take, search, categoryId, status, sortBy, sortOrder, ids } = params;
 
   const where: Prisma.ProductWhereInput = {
     ...(search?.trim() ? buildSearchFilter(search) : {}),
     ...(categoryId ? { categoryId } : {}),
     ...(status ? { status } : {}),
+    ...(ids && ids.length > 0 ? { id: { in: ids } } : {}),
   };
 
   const sortField = sortBy && SORTABLE_FIELDS.has(sortBy) ? FIELD_MAP[sortBy] : 'createdAt';
@@ -86,6 +88,21 @@ export async function listProducts(params: ListProductsParams) {
 export async function getProductById(id: string) {
   const product = await prisma.product.findUnique({
     where: { id },
+    include: {
+      category: true,
+      images: { orderBy: { sortOrder: 'asc' } },
+      variants: {
+        include: { color: true, size: true },
+      },
+    },
+  });
+  if (!product) throw new AppError(404, 'NOT_FOUND', 'Product not found');
+  return product;
+}
+
+export async function getProductBySlug(slug: string) {
+  const product = await prisma.product.findUnique({
+    where: { slug },
     include: {
       category: true,
       images: { orderBy: { sortOrder: 'asc' } },

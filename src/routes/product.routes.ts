@@ -4,6 +4,7 @@ import {
   deleteProduct,
   deleteProductPermanently,
   getProduct,
+  getProductBySlug,
   listProducts,
   updateProduct,
 } from '../controllers/product.controller';
@@ -15,6 +16,7 @@ import variantRoutes from './productVariant.routes';
 const router = Router();
 
 router.get('/', listProducts);
+router.get('/slug/:slug', getProductBySlug);
 router.get('/:id', getProduct);
 router.post('/', validate(createProductSchema), createProduct);
 router.patch('/:id', validate(updateProductSchema), updateProduct);

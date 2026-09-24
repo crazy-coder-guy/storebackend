@@ -13,6 +13,9 @@ export const listProducts = asyncHandler(async (req: Request, res: Response) => 
     : undefined;
   const sortBy = req.query.sortBy ? String(req.query.sortBy) : undefined;
   const sortOrder = req.query.sortOrder === 'asc' ? 'asc' : 'desc';
+  const ids = req.query.ids
+    ? String(req.query.ids).split(',').map((id) => id.trim()).filter(Boolean)
+    : undefined;
 
   const result = await productService.listProducts({
     page,
@@ -24,12 +27,18 @@ export const listProducts = asyncHandler(async (req: Request, res: Response) => 
     status,
     sortBy,
     sortOrder,
+    ids,
   });
   return sendSuccess(res, result, 'Products fetched');
 });
 
 export const getProduct = asyncHandler(async (req: Request, res: Response) => {
   const product = await productService.getProductById(req.params.id);
+  return sendSuccess(res, product, 'Product fetched');
+});
+
+export const getProductBySlug = asyncHandler(async (req: Request, res: Response) => {
+  const product = await productService.getProductBySlug(req.params.slug);
   return sendSuccess(res, product, 'Product fetched');
 });
 
