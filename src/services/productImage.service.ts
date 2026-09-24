@@ -14,24 +14,33 @@ async function assertProductExists(productId: string) {
   if (!product) throw new AppError(404, 'NOT_FOUND', 'Product not found');
 }
 
+async function assertColorExists(colorId: string) {
+  const color = await prisma.color.findUnique({ where: { id: colorId } });
+  if (!color) throw new AppError(422, 'INVALID_COLOR', 'colorId does not reference an existing color');
+}
+
 export async function listProductImages(productId: string) {
   await assertProductExists(productId);
   return prisma.productImage.findMany({
     where: { productId },
+    include: { color: true },
     orderBy: { sortOrder: 'asc' },
   });
 }
 
 export async function createProductImage(productId: string, input: CreateProductImageInput) {
   await assertProductExists(productId);
+  if (input.colorId) await assertColorExists(input.colorId);
   return prisma.productImage.create({
     data: {
       productId,
+      colorId: input.colorId ?? null,
       imageUrl: input.imageUrl,
       imageType: input.imageType ?? 'PRODUCT',
       sortOrder: input.sortOrder ?? 0,
       isPrimary: input.isPrimary ?? false,
     },
+    include: { color: true },
   });
 }
 
@@ -46,6 +55,8 @@ export async function uploadProductImage(
   });
   if (!product) throw new AppError(404, 'NOT_FOUND', 'Product not found');
 
+  if (input.colorId) await assertColorExists(input.colorId);
+
   const ext = path.extname(file.originalname).toLowerCase() || '.jpg';
   const key = `products/${product.category.slug}/${product.slug}/${randomUUID()}${ext}`;
   const imageUrl = await uploadObject(key, file.buffer, file.mimetype);
@@ -53,11 +64,13 @@ export async function uploadProductImage(
   return prisma.productImage.create({
     data: {
       productId,
+      colorId: input.colorId ?? null,
       imageUrl,
       imageType: input.imageType ?? 'PRODUCT',
       sortOrder: input.sortOrder ?? 0,
       isPrimary: input.isPrimary ?? false,
     },
+    include: { color: true },
   });
 }
 
@@ -73,7 +86,8 @@ export async function updateProductImage(
   input: UpdateProductImageInput
 ) {
   await getImageOrThrow(productId, imageId);
-  return prisma.productImage.update({ where: { id: imageId }, data: input });
+  if (input.colorId) await assertColorExists(input.colorId);
+  return prisma.productImage.update({ where: { id: imageId }, data: input, include: { color: true } });
 }
 
 export async function deleteProductImage(productId: string, imageId: string) {

@@ -5,6 +5,7 @@ export const createProductImageSchema = z.object({
   imageType: z.enum(['PRODUCT', 'MODEL', 'LIFESTYLE']).optional(),
   sortOrder: z.number().int().optional(),
   isPrimary: z.boolean().optional(),
+  colorId: z.string().uuid().nullable().optional(),
 });
 
 export const updateProductImageSchema = createProductImageSchema.partial();
@@ -16,6 +17,7 @@ export const uploadProductImageSchema = z.object({
     .union([z.literal('true'), z.literal('false')])
     .optional()
     .transform((value) => value === 'true'),
+  colorId: z.string().uuid().optional(),
 });
 
 export type CreateProductImageInput = z.infer<typeof createProductImageSchema>;

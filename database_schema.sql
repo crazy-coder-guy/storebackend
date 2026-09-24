@@ -2,7 +2,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict 6JbBBkJKdibwgQMIvbIrMWpbTN23J64oAZlPqwyySgD560Hih4guh6slna0gCQv
+\restrict MYOPxnBPQT85RhzrGj1SG8JAtoP9S3Y8npMCbSL59SDYDQxeNkGW5VFCrd0J7O5
 
 -- Dumped from database version 17.6
 -- Dumped by pg_dump version 18.4 (Homebrew)
@@ -295,7 +295,8 @@ CREATE TABLE public.product_images (
     image_type public."ImageType" NOT NULL,
     sort_order integer DEFAULT 0 NOT NULL,
     is_primary boolean DEFAULT false NOT NULL,
-    created_at timestamp(3) without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL
+    created_at timestamp(3) without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    color_id text
 );
 
 
@@ -649,6 +650,13 @@ CREATE INDEX orders_status_idx ON public.orders USING btree (status);
 
 
 --
+-- Name: product_images_color_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX product_images_color_id_idx ON public.product_images USING btree (color_id);
+
+
+--
 -- Name: product_images_product_id_idx; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -834,6 +842,14 @@ ALTER TABLE ONLY public.orders
 
 
 --
+-- Name: product_images product_images_color_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.product_images
+    ADD CONSTRAINT product_images_color_id_fkey FOREIGN KEY (color_id) REFERENCES public.colors(id) ON UPDATE CASCADE ON DELETE SET NULL;
+
+
+--
 -- Name: product_images product_images_product_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -877,5 +893,5 @@ ALTER TABLE ONLY public.products
 -- PostgreSQL database dump complete
 --
 
-\unrestrict 6JbBBkJKdibwgQMIvbIrMWpbTN23J64oAZlPqwyySgD560Hih4guh6slna0gCQv
+\unrestrict MYOPxnBPQT85RhzrGj1SG8JAtoP9S3Y8npMCbSL59SDYDQxeNkGW5VFCrd0J7O5
 

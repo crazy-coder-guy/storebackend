@@ -60,7 +60,7 @@ export async function listProducts(params: ListProductsParams) {
       orderBy,
       include: {
         category: true,
-        images: { orderBy: [{ isPrimary: 'desc' }, { sortOrder: 'asc' }] },
+        images: { orderBy: [{ isPrimary: 'desc' }, { sortOrder: 'asc' }], include: { color: true } },
         variants: {
           where: { status: 'ACTIVE' },
           select: { size: true, color: true },
@@ -90,7 +90,7 @@ export async function getProductById(id: string) {
     where: { id },
     include: {
       category: true,
-      images: { orderBy: { sortOrder: 'asc' } },
+      images: { orderBy: { sortOrder: 'asc' }, include: { color: true } },
       variants: {
         include: { color: true, size: true },
       },
@@ -105,7 +105,7 @@ export async function getProductBySlug(slug: string) {
     where: { slug },
     include: {
       category: true,
-      images: { orderBy: { sortOrder: 'asc' } },
+      images: { orderBy: { sortOrder: 'asc' }, include: { color: true } },
       variants: {
         include: { color: true, size: true },
       },
