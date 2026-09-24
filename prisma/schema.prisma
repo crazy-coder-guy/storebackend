@@ -101,7 +101,7 @@ model Product {
   createdAt   DateTime      @default(now()) @map("created_at")
   updatedAt   DateTime      @updatedAt @map("updated_at")
 
-  category  Category          @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  category  Category         @relation(fields: [categoryId], references: [id], onDelete: Restrict)
   images    ProductImage[]
   variants  ProductVariant[]
   featured  FeaturedProduct?
@@ -113,14 +113,14 @@ model Product {
 }
 
 model ProductImage {
-  id         String    @id @default(uuid())
-  productId  String    @map("product_id")
-  colorId    String?   @map("color_id")
-  imageUrl   String    @map("image_url")
-  imageType  ImageType @map("image_type")
-  sortOrder  Int       @default(0) @map("sort_order")
-  isPrimary  Boolean   @default(false) @map("is_primary")
-  createdAt  DateTime  @default(now()) @map("created_at")
+  id        String    @id @default(uuid())
+  productId String    @map("product_id")
+  colorId   String?   @map("color_id")
+  imageUrl  String    @map("image_url")
+  imageType ImageType @map("image_type")
+  sortOrder Int       @default(0) @map("sort_order")
+  isPrimary Boolean   @default(false) @map("is_primary")
+  createdAt DateTime  @default(now()) @map("created_at")
 
   product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
   color   Color?  @relation(fields: [colorId], references: [id], onDelete: SetNull)
@@ -172,12 +172,12 @@ model ProductVariant {
   createdAt     DateTime     @default(now()) @map("created_at")
   updatedAt     DateTime     @updatedAt @map("updated_at")
 
-  product                Product                @relation(fields: [productId], references: [id], onDelete: Cascade)
-  color                  Color                  @relation(fields: [colorId], references: [id], onDelete: Restrict)
-  size                   Size                   @relation(fields: [sizeId], references: [id], onDelete: Restrict)
-  inventoryTransactions  InventoryTransaction[]
-  orderItems             OrderItem[]
-  cartItems              CartItem[]
+  product               Product                @relation(fields: [productId], references: [id], onDelete: Cascade)
+  color                 Color                  @relation(fields: [colorId], references: [id], onDelete: Restrict)
+  size                  Size                   @relation(fields: [sizeId], references: [id], onDelete: Restrict)
+  inventoryTransactions InventoryTransaction[]
+  orderItems            OrderItem[]
+  cartItems             CartItem[]
 
   @@unique([productId, colorId, sizeId])
   @@index([productId])
@@ -255,18 +255,18 @@ model Customer {
 }
 
 model Order {
-  id              String        @id @default(uuid())
-  orderNumber     String        @unique @map("order_number")
-  customerId      String        @map("customer_id")
-  status          OrderStatus   @default(PENDING)
-  paymentStatus   PaymentStatus @default(UNPAID) @map("payment_status")
-  totalAmount     Decimal       @map("total_amount")
-  shippingAddress String        @map("shipping_address")
-  razorpayOrderId String?       @map("razorpay_order_id")
-  razorpayPaymentId String?     @map("razorpay_payment_id")
-  razorpaySignature String?     @map("razorpay_signature")
-  createdAt       DateTime      @default(now()) @map("created_at")
-  updatedAt       DateTime      @updatedAt @map("updated_at")
+  id                String        @id @default(uuid())
+  orderNumber       String        @unique @map("order_number")
+  customerId        String        @map("customer_id")
+  status            OrderStatus   @default(PENDING)
+  paymentStatus     PaymentStatus @default(UNPAID) @map("payment_status")
+  totalAmount       Decimal       @map("total_amount")
+  shippingAddress   String        @map("shipping_address")
+  razorpayOrderId   String?       @map("razorpay_order_id")
+  razorpayPaymentId String?       @map("razorpay_payment_id")
+  razorpaySignature String?       @map("razorpay_signature")
+  createdAt         DateTime      @default(now()) @map("created_at")
+  updatedAt         DateTime      @updatedAt @map("updated_at")
 
   customer Customer    @relation(fields: [customerId], references: [id], onDelete: Restrict)
   items    OrderItem[]
@@ -303,10 +303,37 @@ model User {
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
 
-  cart      Cart?
-  favorites Favorite[]
+  cart              Cart?
+  favorites         Favorite[]
+  pushSubscriptions PushSubscription[]
 
   @@map("users")
+}
+
+model PushSubscription {
+  id        String   @id @default(uuid())
+  endpoint  String   @unique
+  p256dh    String
+  auth      String
+  userId    String?  @map("user_id")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@map("push_subscriptions")
+}
+
+model PushNotification {
+  id           String   @id @default(uuid())
+  title        String
+  body         String
+  url          String?
+  successCount Int      @default(0) @map("success_count")
+  failureCount Int      @default(0) @map("failure_count")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  @@map("push_notifications")
 }
 
 model Cart {

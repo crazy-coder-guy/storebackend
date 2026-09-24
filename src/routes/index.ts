@@ -9,6 +9,7 @@ import healthRoutes from './health.routes';
 import inventoryRoutes from './inventory.routes';
 import orderRoutes from './order.routes';
 import productRoutes from './product.routes';
+import pushRoutes from './push.routes';
 import searchRoutes from './search.routes';
 import sizeRoutes from './size.routes';
 import storefrontRoutes from './storefront.routes';
@@ -30,6 +31,7 @@ v1.use('/orders', orderRoutes);
 v1.use('/customers', customerRoutes);
 v1.use('/cart', cartRoutes);
 v1.use('/favorites', favoriteRoutes);
+v1.use('/push', pushRoutes);
 
 router.use('/v1', v1);
 
