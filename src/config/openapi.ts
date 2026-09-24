@@ -1081,6 +1081,20 @@ const customerSchema = {
 };
 
 const ordersPaths = {
+  '/v1/orders/mine': {
+    get: {
+      tags: ['Orders'],
+      summary: "List the signed-in account's own orders, matched by their Google account email",
+      security: [{ bearerAuth: [] }],
+      responses: {
+        '200': {
+          description: 'Your orders fetched',
+          content: { 'application/json': { schema: successEnvelope({ type: 'array', items: orderSchema }) } },
+        },
+        ...errorResponses,
+      },
+    },
+  },
   '/v1/orders': {
     get: {
       tags: ['Orders'],
@@ -1160,6 +1174,63 @@ const ordersPaths = {
       },
     },
   },
+  '/v1/orders/{id}/razorpay-order': {
+    post: {
+      tags: ['Orders'],
+      summary: 'Create a Razorpay order for an existing order, to open in Razorpay Checkout',
+      parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
+      responses: {
+        '200': {
+          description: 'Razorpay order created',
+          content: {
+            'application/json': {
+              schema: successEnvelope({
+                type: 'object',
+                properties: {
+                  razorpayOrderId: { type: 'string' },
+                  amount: { type: 'integer', description: 'In paise' },
+                  currency: { type: 'string', example: 'INR' },
+                  keyId: { type: 'string' },
+                  orderId: { type: 'string', format: 'uuid' },
+                  orderNumber: { type: 'string' },
+                },
+              }),
+            },
+          },
+        },
+        ...errorResponses,
+      },
+    },
+  },
+  '/v1/orders/{id}/razorpay-verify': {
+    post: {
+      tags: ['Orders'],
+      summary: "Verify a Razorpay Checkout payment's signature and mark the order PAID",
+      parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
+      requestBody: {
+        content: {
+          'application/json': {
+            schema: {
+              type: 'object',
+              required: ['razorpayOrderId', 'razorpayPaymentId', 'razorpaySignature'],
+              properties: {
+                razorpayOrderId: { type: 'string' },
+                razorpayPaymentId: { type: 'string' },
+                razorpaySignature: { type: 'string' },
+              },
+            },
+          },
+        },
+      },
+      responses: {
+        '200': {
+          description: 'Payment verified, order updated',
+          content: { 'application/json': { schema: successEnvelope(orderSchema) } },
+        },
+        ...errorResponses,
+      },
+    },
+  },
 };
 
 const customersPaths = {
@@ -1196,6 +1267,192 @@ const customersPaths = {
         '200': {
           description: 'Customer fetched',
           content: { 'application/json': { schema: successEnvelope(customerSchema) } },
+        },
+        ...errorResponses,
+      },
+    },
+  },
+};
+
+const cartItemSchema = {
+  type: 'object',
+  properties: {
+    id: { type: 'string', format: 'uuid' },
+    variantId: { type: 'string', format: 'uuid' },
+    productId: { type: 'string', format: 'uuid' },
+    name: { type: 'string' },
+    subtitle: { type: 'string' },
+    price: { type: 'number' },
+    mrp: { type: 'number' },
+    image: { type: 'string', nullable: true },
+    size: { type: 'string' },
+    color: {
+      type: 'object',
+      properties: { name: { type: 'string' }, hex: { type: 'string' } },
+    },
+    quantity: { type: 'integer' },
+    stockQuantity: { type: 'integer' },
+  },
+};
+
+const cartPaths = {
+  '/v1/cart': {
+    get: {
+      tags: ['Cart'],
+      summary: "Get the signed-in user's cart",
+      security: [{ bearerAuth: [] }],
+      responses: {
+        '200': {
+          description: 'Cart fetched',
+          content: { 'application/json': { schema: successEnvelope({ type: 'array', items: cartItemSchema }) } },
+        },
+        ...errorResponses,
+      },
+    },
+    delete: {
+      tags: ['Cart'],
+      summary: 'Clear the cart',
+      security: [{ bearerAuth: [] }],
+      responses: {
+        '200': {
+          description: 'Cart cleared',
+          content: { 'application/json': { schema: successEnvelope({ type: 'array', items: cartItemSchema }) } },
+        },
+        ...errorResponses,
+      },
+    },
+  },
+  '/v1/cart/items': {
+    post: {
+      tags: ['Cart'],
+      summary: 'Add a variant to the cart (increments quantity if already present)',
+      security: [{ bearerAuth: [] }],
+      requestBody: {
+        content: {
+          'application/json': {
+            schema: {
+              type: 'object',
+              required: ['variantId'],
+              properties: {
+                variantId: { type: 'string', format: 'uuid' },
+                quantity: { type: 'integer', minimum: 1, default: 1 },
+              },
+            },
+          },
+        },
+      },
+      responses: {
+        '201': {
+          description: 'Item added',
+          content: { 'application/json': { schema: successEnvelope({ type: 'array', items: cartItemSchema }) } },
+        },
+        ...errorResponses,
+      },
+    },
+  },
+  '/v1/cart/items/{itemId}': {
+    patch: {
+      tags: ['Cart'],
+      summary: 'Set a cart item\'s quantity (0 removes it)',
+      security: [{ bearerAuth: [] }],
+      parameters: [{ name: 'itemId', in: 'path', required: true, schema: { type: 'string' } }],
+      requestBody: {
+        content: {
+          'application/json': {
+            schema: { type: 'object', required: ['quantity'], properties: { quantity: { type: 'integer', minimum: 0 } } },
+          },
+        },
+      },
+      responses: {
+        '200': {
+          description: 'Cart item updated',
+          content: { 'application/json': { schema: successEnvelope({ type: 'array', items: cartItemSchema }) } },
+        },
+        ...errorResponses,
+      },
+    },
+    delete: {
+      tags: ['Cart'],
+      summary: 'Remove an item from the cart',
+      security: [{ bearerAuth: [] }],
+      parameters: [{ name: 'itemId', in: 'path', required: true, schema: { type: 'string' } }],
+      responses: {
+        '200': {
+          description: 'Item removed',
+          content: { 'application/json': { schema: successEnvelope({ type: 'array', items: cartItemSchema }) } },
+        },
+        ...errorResponses,
+      },
+    },
+  },
+};
+
+const favoritesPaths = {
+  '/v1/favorites': {
+    get: {
+      tags: ['Favorites'],
+      summary: "Get the signed-in user's favorited product ids",
+      security: [{ bearerAuth: [] }],
+      responses: {
+        '200': {
+          description: 'Favorites fetched',
+          content: {
+            'application/json': {
+              schema: successEnvelope({ type: 'array', items: { type: 'string', format: 'uuid' } }),
+            },
+          },
+        },
+        ...errorResponses,
+      },
+    },
+    delete: {
+      tags: ['Favorites'],
+      summary: 'Clear all favorites',
+      security: [{ bearerAuth: [] }],
+      responses: {
+        '200': {
+          description: 'Favorites cleared',
+          content: {
+            'application/json': {
+              schema: successEnvelope({ type: 'array', items: { type: 'string', format: 'uuid' } }),
+            },
+          },
+        },
+        ...errorResponses,
+      },
+    },
+  },
+  '/v1/favorites/{productId}': {
+    post: {
+      tags: ['Favorites'],
+      summary: 'Add a product to favorites (idempotent)',
+      security: [{ bearerAuth: [] }],
+      parameters: [{ name: 'productId', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }],
+      responses: {
+        '201': {
+          description: 'Added to favorites',
+          content: {
+            'application/json': {
+              schema: successEnvelope({ type: 'array', items: { type: 'string', format: 'uuid' } }),
+            },
+          },
+        },
+        ...errorResponses,
+      },
+    },
+    delete: {
+      tags: ['Favorites'],
+      summary: 'Remove a product from favorites',
+      security: [{ bearerAuth: [] }],
+      parameters: [{ name: 'productId', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }],
+      responses: {
+        '200': {
+          description: 'Removed from favorites',
+          content: {
+            'application/json': {
+              schema: successEnvelope({ type: 'array', items: { type: 'string', format: 'uuid' } }),
+            },
+          },
         },
         ...errorResponses,
       },
@@ -1241,11 +1498,20 @@ export const openApiSpec = {
     { name: 'Search' },
     { name: 'Orders' },
     { name: 'Customers' },
+    { name: 'Cart' },
+    { name: 'Favorites' },
   ],
   components: {
     schemas: {
       ProductImage: productImageSchema,
       ProductVariant: productVariantSchema,
+    },
+    securitySchemes: {
+      bearerAuth: {
+        type: 'http',
+        scheme: 'bearer',
+        description: 'Firebase (Google Sign-In) ID token',
+      },
     },
   },
   paths: {
@@ -1287,5 +1553,7 @@ export const openApiSpec = {
     ...searchPaths,
     ...ordersPaths,
     ...customersPaths,
+    ...cartPaths,
+    ...favoritesPaths,
   },
 };

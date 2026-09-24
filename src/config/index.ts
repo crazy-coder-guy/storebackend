@@ -2,6 +2,24 @@ import dotenv from 'dotenv';
 
 dotenv.config();
 
+// Prisma's schema requires a single connection-string env var (DATABASE_URL
+// / DIRECT_URL), so rather than keeping that string duplicated on disk in
+// .env, it's built here from the discrete DB_* fields — the single source
+// of truth — and injected into process.env before anything (Prisma Client
+// included) reads it. This only covers the running app process; Prisma CLI
+// commands run as separate processes and need the same treatment via
+// scripts/prisma-cli.js.
+function buildDatabaseUrl(): string {
+  const { DB_USER, DB_PASSWORD, DB_HOST, DB_PORT, DB_NAME, DB_SSL } = process.env;
+  if (!DB_USER || !DB_PASSWORD || !DB_HOST || !DB_NAME) return '';
+  const port = DB_PORT || '5432';
+  const sslParam = DB_SSL === 'true' ? '?sslmode=require' : '';
+  return `postgresql://${encodeURIComponent(DB_USER)}:${encodeURIComponent(DB_PASSWORD)}@${DB_HOST}:${port}/${DB_NAME}${sslParam}`;
+}
+
+if (!process.env.DATABASE_URL) process.env.DATABASE_URL = buildDatabaseUrl();
+if (!process.env.DIRECT_URL) process.env.DIRECT_URL = process.env.DATABASE_URL;
+
 export const config = {
   port: process.env.PORT || 3000,
   nodeEnv: process.env.NODE_ENV || 'development',
@@ -14,7 +32,6 @@ export const config = {
     port: Number(process.env.DB_PORT) || 5432,
     name: process.env.DB_NAME || '',
     ssl: process.env.DB_SSL === 'true',
-    channelBinding: process.env.DB_CHANNEL_BINDING || '',
   },
 
   s3: {
@@ -23,5 +40,14 @@ export const config = {
     secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY || '',
     region: process.env.AWS_REGION || '',
     bucket: process.env.AWS_BUCKET_NAME || 'store',
+  },
+
+  razorpay: {
+    keyId: process.env.RAZORPAY_KEY_ID || '',
+    keySecret: process.env.RAZORPAY_KEY_SECRET || '',
+  },
+
+  firebase: {
+    projectId: process.env.FIREBASE_PROJECT_ID || '',
   },
 };

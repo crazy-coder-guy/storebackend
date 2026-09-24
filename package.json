@@ -8,10 +8,15 @@
     "build": "tsc",
     "start": "node dist/server.js",
     "test": "jest --runInBand",
-    "db:seed": "ts-node prisma/seed.ts"
+    "db:seed": "node scripts/prisma-cli.js npx ts-node prisma/seed.ts",
+    "db:push": "node scripts/prisma-cli.js npx prisma db push",
+    "db:migrate:deploy": "node scripts/prisma-cli.js npx prisma migrate deploy",
+    "db:migrate:status": "node scripts/prisma-cli.js npx prisma migrate status",
+    "db:generate": "node scripts/prisma-cli.js npx prisma generate",
+    "db:studio": "node scripts/prisma-cli.js npx prisma studio"
   },
   "prisma": {
-    "seed": "ts-node prisma/seed.ts"
+    "seed": "node scripts/prisma-cli.js npx ts-node prisma/seed.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1137.0",
@@ -20,8 +25,10 @@
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",
     "express": "^4.19.2",
+    "firebase-admin": "^14.5.0",
     "multer": "^2.4.0",
     "prisma": "^5.22.0",
+    "razorpay": "^2.9.8",
     "slugify": "^1.6.9",
     "zod": "^3.23.8"
   },

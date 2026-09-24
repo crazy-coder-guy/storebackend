@@ -1,8 +1,10 @@
 import { Router } from 'express';
+import cartRoutes from './cart.routes';
 import categoryRoutes from './category.routes';
 import colorRoutes from './color.routes';
 import customerRoutes from './customer.routes';
 import dashboardRoutes from './dashboard.routes';
+import favoriteRoutes from './favorite.routes';
 import healthRoutes from './health.routes';
 import inventoryRoutes from './inventory.routes';
 import orderRoutes from './order.routes';
@@ -26,6 +28,8 @@ v1.use('/storefront', storefrontRoutes);
 v1.use('/search', searchRoutes);
 v1.use('/orders', orderRoutes);
 v1.use('/customers', customerRoutes);
+v1.use('/cart', cartRoutes);
+v1.use('/favorites', favoriteRoutes);
 
 router.use('/v1', v1);
 

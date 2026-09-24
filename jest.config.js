@@ -7,5 +7,7 @@ module.exports = {
   testTimeout: 30000,
   moduleNameMapper: {
     '^@scalar/express-api-reference$': '<rootDir>/tests/__mocks__/scalarExpressApiReference.js',
+    '^firebase-admin/app$': '<rootDir>/tests/__mocks__/firebaseAdminApp.js',
+    '^firebase-admin/auth$': '<rootDir>/tests/__mocks__/firebaseAdminAuth.js',
   },
 };

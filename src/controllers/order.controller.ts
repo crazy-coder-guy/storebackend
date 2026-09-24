@@ -23,6 +23,11 @@ export const getOrder = asyncHandler(async (req: Request, res: Response) => {
   return sendSuccess(res, order, 'Order fetched');
 });
 
+export const getMyOrders = asyncHandler(async (req: Request, res: Response) => {
+  const orders = await orderService.listMyOrders(req.authUser!.email);
+  return sendSuccess(res, orders, 'Your orders fetched');
+});
+
 export const createOrder = asyncHandler(async (req: Request, res: Response) => {
   const order = await orderService.createOrder(req.body);
   return sendSuccess(res, order, 'Order created', 201);

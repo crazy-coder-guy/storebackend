@@ -95,10 +95,11 @@ model Product {
   createdAt   DateTime      @default(now()) @map("created_at")
   updatedAt   DateTime      @updatedAt @map("updated_at")
 
-  category Category         @relation(fields: [categoryId], references: [id], onDelete: Restrict)
-  images   ProductImage[]
-  variants ProductVariant[]
-  featured FeaturedProduct?
+  category  Category          @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  images    ProductImage[]
+  variants  ProductVariant[]
+  featured  FeaturedProduct?
+  favorites Favorite[]
 
   @@index([categoryId])
   @@index([status])
@@ -166,6 +167,7 @@ model ProductVariant {
   size                   Size                   @relation(fields: [sizeId], references: [id], onDelete: Restrict)
   inventoryTransactions  InventoryTransaction[]
   orderItems             OrderItem[]
+  cartItems              CartItem[]
 
   @@unique([productId, colorId, sizeId])
   @@index([productId])
@@ -250,6 +252,9 @@ model Order {
   paymentStatus   PaymentStatus @default(UNPAID) @map("payment_status")
   totalAmount     Decimal       @map("total_amount")
   shippingAddress String        @map("shipping_address")
+  razorpayOrderId String?       @map("razorpay_order_id")
+  razorpayPaymentId String?     @map("razorpay_payment_id")
+  razorpaySignature String?     @map("razorpay_signature")
   createdAt       DateTime      @default(now()) @map("created_at")
   updatedAt       DateTime      @updatedAt @map("updated_at")
 
@@ -274,4 +279,62 @@ model OrderItem {
   @@index([orderId])
   @@index([variantId])
   @@map("order_items")
+}
+
+// A storefront account, created on first successful Google sign-in
+// (Firebase Auth). Not the same as Customer, which is a per-order billing
+// contact and may never correspond to an authenticated account.
+model User {
+  id          String   @id @default(uuid())
+  firebaseUid String   @unique @map("firebase_uid")
+  email       String   @unique
+  name        String?
+  photoUrl    String?  @map("photo_url")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  cart      Cart?
+  favorites Favorite[]
+
+  @@map("users")
+}
+
+model Cart {
+  id        String   @id @default(uuid())
+  userId    String   @unique @map("user_id")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  user  User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  items CartItem[]
+
+  @@map("carts")
+}
+
+model CartItem {
+  id        String   @id @default(uuid())
+  cartId    String   @map("cart_id")
+  variantId String   @map("variant_id")
+  quantity  Int
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  cart    Cart           @relation(fields: [cartId], references: [id], onDelete: Cascade)
+  variant ProductVariant @relation(fields: [variantId], references: [id], onDelete: Cascade)
+
+  @@unique([cartId, variantId])
+  @@map("cart_items")
+}
+
+model Favorite {
+  id        String   @id @default(uuid())
+  userId    String   @map("user_id")
+  productId String   @map("product_id")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, productId])
+  @@map("favorites")
 }

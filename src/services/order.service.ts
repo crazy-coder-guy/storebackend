@@ -105,6 +105,21 @@ export async function getOrderById(id: string) {
   return serializeOrder(await getOrderRaw(id));
 }
 
+/**
+ * Orders link to a Customer (matched by email at checkout), not to the
+ * Firebase-authenticated User — so "my orders" is resolved by matching the
+ * signed-in account's email against Customer.email rather than a direct
+ * foreign key.
+ */
+export async function listMyOrders(email: string) {
+  const orders = await prisma.order.findMany({
+    where: { customer: { email } },
+    include: orderInclude,
+    orderBy: { createdAt: 'desc' },
+  });
+  return orders.map(serializeOrder);
+}
+
 export async function createOrder(input: CreateOrderInput) {
   const orderId = await prisma.$transaction(async (tx) => {
     const customer = await tx.customer.upsert({
