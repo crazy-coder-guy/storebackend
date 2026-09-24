@@ -1,5 +1,10 @@
 generator client {
-  provider = "prisma-client-js"
+  provider      = "prisma-client-js"
+  // Render's build step failed to auto-detect the runtime's OpenSSL version
+  // and defaulted to an incompatible musl/OpenSSL-1.1 engine; Render's actual
+  // runtime is glibc-based with OpenSSL 3.0, so pin both targets explicitly:
+  // "native" for local dev (macOS), "debian-openssl-3.0.x" for Render.
+  binaryTargets = ["native", "debian-openssl-3.0.x"]
 }
 
 datasource db {
