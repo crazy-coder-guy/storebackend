@@ -1,6 +1,11 @@
 # ---- Build stage ----
 FROM node:20-alpine AS build
 
+# Alpine doesn't ship the `openssl` CLI Prisma shells out to for version
+# detection; without it, generate silently guesses wrong and produces an
+# engine binary incompatible with this same image's runtime OpenSSL.
+RUN apk add --no-cache openssl
+
 WORKDIR /app
 
 COPY package*.json ./
@@ -15,6 +20,8 @@ RUN npm run build
 
 # ---- Run stage ----
 FROM node:20-alpine AS run
+
+RUN apk add --no-cache openssl
 
 ENV NODE_ENV=production
 WORKDIR /app

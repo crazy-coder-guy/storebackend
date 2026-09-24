@@ -1,10 +1,11 @@
 generator client {
   provider      = "prisma-client-js"
-  // Render's build step failed to auto-detect the runtime's OpenSSL version
-  // and defaulted to an incompatible musl/OpenSSL-1.1 engine; Render's actual
-  // runtime is glibc-based with OpenSSL 3.0, so pin both targets explicitly:
-  // "native" for local dev (macOS), "debian-openssl-3.0.x" for Render.
-  binaryTargets = ["native", "debian-openssl-3.0.x"]
+  // Render deploys this via Dockerfile on node:20-alpine (musl libc, OpenSSL
+  // 3.0 — no libssl.so.1.1). The build step couldn't auto-detect OpenSSL and
+  // defaulted to an incompatible musl/OpenSSL-1.1 engine, so pin the correct
+  // target explicitly: "native" for local dev (macOS), "linux-musl-openssl-3.0.x"
+  // for the Alpine container.
+  binaryTargets = ["native", "linux-musl-openssl-3.0.x"]
 }
 
 datasource db {
