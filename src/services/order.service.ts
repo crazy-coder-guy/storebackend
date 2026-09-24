@@ -188,9 +188,7 @@ export async function createOrder(input: CreateOrderInput) {
     return order.id;
   });
 
-  const created = await getOrderById(orderId);
-  void orderNotificationService.notifyOrderPlaced(created);
-  return created;
+  return getOrderById(orderId);
 }
 
 export async function updateOrderStatus(id: string, status: OrderStatus) {

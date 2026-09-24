@@ -5,6 +5,7 @@ import { config } from '../config';
 import { AppError } from '../utils/AppError';
 import { VerifyPaymentInput } from '../validation/payment.validation';
 import { getOrderById } from './order.service';
+import * as orderNotificationService from './orderNotification.service';
 
 const razorpay = new Razorpay({
   key_id: config.razorpay.keyId,
@@ -73,5 +74,7 @@ export async function verifyPayment(orderId: string, input: VerifyPaymentInput) 
     },
   });
 
-  return getOrderById(orderId);
+  const verified = await getOrderById(orderId);
+  void orderNotificationService.notifyOrderPlaced(verified);
+  return verified;
 }
