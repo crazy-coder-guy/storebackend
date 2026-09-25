@@ -8,6 +8,7 @@ import dashboardRoutes from './dashboard.routes';
 import favoriteRoutes from './favorite.routes';
 import healthRoutes from './health.routes';
 import inventoryRoutes from './inventory.routes';
+import newsletterRoutes from './newsletter.routes';
 import orderRoutes from './order.routes';
 import productRoutes from './product.routes';
 import pushRoutes from './push.routes';
@@ -36,6 +37,7 @@ v1.use('/favorites', favoriteRoutes);
 v1.use('/push', pushRoutes);
 v1.use('/addresses', addressRoutes);
 v1.use('/reviews', reviewsAdminRoutes);
+v1.use('/newsletter', newsletterRoutes);
 
 router.use('/v1', v1);
 

@@ -438,3 +438,13 @@ model Review {
   @@index([userId])
   @@map("reviews")
 }
+
+// Footer "Stay Connected" opt-in — deliberately not tied to User, since a
+// storefront visitor can subscribe without ever signing in.
+model NewsletterSubscriber {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@map("newsletter_subscribers")
+}

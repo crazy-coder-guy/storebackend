@@ -64,4 +64,10 @@ export const config = {
     privateKey: process.env.VAPID_PRIVATE_KEY || '',
     subject: process.env.VAPID_SUBJECT || '',
   },
+
+  brevo: {
+    apiKey: process.env.BREVO_API_KEY || '',
+    senderName: process.env.BREVO_SENDER_NAME || 'Kaiira',
+    senderEmail: process.env.BREVO_SENDER_EMAIL || '',
+  },
 };
