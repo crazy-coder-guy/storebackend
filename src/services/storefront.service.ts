@@ -11,7 +11,7 @@ const DEFAULT_SETTINGS = {
   announcementText: 'Free Express Shipping Over ₹1,999 • 7-Day Easy Returns',
   heroTitle: 'Modern Essentials for Everyday Style',
   heroSubtitle:
-    'Discover refined apparel crafted with exceptional fabrics and minimal aesthetics. Designed by Kaira.',
+    'Refined apparel crafted from exceptional fabrics, built for everyday wear. Designed by Kaiira.',
 };
 
 export async function getStorefrontSettings() {
