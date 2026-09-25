@@ -11,6 +11,7 @@ import inventoryRoutes from './inventory.routes';
 import orderRoutes from './order.routes';
 import productRoutes from './product.routes';
 import pushRoutes from './push.routes';
+import reviewsAdminRoutes from './reviewsAdmin.routes';
 import searchRoutes from './search.routes';
 import sizeRoutes from './size.routes';
 import storefrontRoutes from './storefront.routes';
@@ -34,6 +35,7 @@ v1.use('/cart', cartRoutes);
 v1.use('/favorites', favoriteRoutes);
 v1.use('/push', pushRoutes);
 v1.use('/addresses', addressRoutes);
+v1.use('/reviews', reviewsAdminRoutes);
 
 router.use('/v1', v1);
 

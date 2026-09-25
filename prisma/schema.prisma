@@ -106,6 +106,7 @@ model Product {
   variants  ProductVariant[]
   featured  FeaturedProduct?
   favorites Favorite[]
+  reviews   Review[]
 
   @@index([categoryId])
   @@index([status])
@@ -270,6 +271,7 @@ model Order {
 
   customer Customer    @relation(fields: [customerId], references: [id], onDelete: Restrict)
   items    OrderItem[]
+  reviews  Review[]
 
   @@index([customerId])
   @@index([status])
@@ -307,6 +309,7 @@ model User {
   favorites         Favorite[]
   pushSubscriptions PushSubscription[]
   addresses         Address[]
+  reviews           Review[]
 
   @@map("users")
 }
@@ -409,4 +412,29 @@ model Favorite {
 
   @@unique([userId, productId])
   @@map("favorites")
+}
+
+// A rating + comment left by a user who has an order marked DELIVERED for
+// this product ("Verified Purchase") — one review per user per product,
+// like Flipkart. Photos/video are optional; rating and comment are not.
+model Review {
+  id        String   @id @default(uuid())
+  productId String   @map("product_id")
+  userId    String   @map("user_id")
+  orderId   String   @map("order_id")
+  rating    Int
+  comment   String
+  images    String[] @default([])
+  video     String?
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  order   Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, productId])
+  @@index([productId])
+  @@index([userId])
+  @@map("reviews")
 }

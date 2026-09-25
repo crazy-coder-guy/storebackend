@@ -12,6 +12,7 @@ import { validate } from '../middleware/validate';
 import { createProductSchema, updateProductSchema } from '../validation/product.validation';
 import imageRoutes from './productImage.routes';
 import variantRoutes from './productVariant.routes';
+import reviewRoutes from './review.routes';
 
 const router = Router();
 
@@ -25,5 +26,6 @@ router.delete('/:id/permanent', deleteProductPermanently);
 
 router.use('/:productId/images', imageRoutes);
 router.use('/:productId/variants', variantRoutes);
+router.use('/:productId/reviews', reviewRoutes);
 
 export default router;

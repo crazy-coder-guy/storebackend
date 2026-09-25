@@ -53,6 +53,8 @@ function serializeOrder(order: OrderWithRelations) {
     itemsCount,
     items: order.items.map((item) => ({
       id: item.id,
+      productId: item.variant.productId,
+      productSlug: item.variant.product.slug,
       productImageUrl: item.variant.product.images[0]?.imageUrl ?? null,
       productName: item.variant.product.name,
       colorName: item.variant.color.name,
