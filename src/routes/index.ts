@@ -16,6 +16,7 @@ import reviewsAdminRoutes from './reviewsAdmin.routes';
 import searchRoutes from './search.routes';
 import sizeRoutes from './size.routes';
 import storefrontRoutes from './storefront.routes';
+import visitRoutes from './visit.routes';
 
 const router = Router();
 
@@ -38,6 +39,7 @@ v1.use('/push', pushRoutes);
 v1.use('/addresses', addressRoutes);
 v1.use('/reviews', reviewsAdminRoutes);
 v1.use('/newsletter', newsletterRoutes);
+v1.use('/visits', visitRoutes);
 
 router.use('/v1', v1);
 

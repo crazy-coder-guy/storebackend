@@ -2,6 +2,7 @@ import { EntityStatus, Prisma } from '@prisma/client';
 import { prisma } from '../database/prisma';
 import { AppError } from '../utils/AppError';
 import { buildMeta } from '../utils/pagination';
+import { getLatestVisitsByEmail, VisitInfo } from './visit.service';
 
 interface ListCustomersParams {
   page: number;
@@ -18,7 +19,7 @@ const customerInclude = {
 
 type CustomerWithOrders = Prisma.CustomerGetPayload<{ include: typeof customerInclude }>;
 
-function serializeCustomer(customer: CustomerWithOrders) {
+function serializeCustomer(customer: CustomerWithOrders, visitByEmail: Map<string, VisitInfo>) {
   const ordersCount = customer.orders.length;
   const totalSpent = customer.orders.reduce(
     (sum, order) => sum.add(order.totalAmount),
@@ -38,6 +39,7 @@ function serializeCustomer(customer: CustomerWithOrders) {
     totalSpent,
     lastOrderAt: lastOrderAt ?? customer.createdAt,
     createdAt: customer.createdAt,
+    lastVisit: visitByEmail.get(customer.email) ?? null,
   };
 }
 
@@ -68,11 +70,17 @@ export async function listCustomers(params: ListCustomersParams) {
     prisma.customer.count({ where }),
   ]);
 
-  return { items: rawItems.map(serializeCustomer), meta: buildMeta(page, limit, total) };
+  const visitByEmail = await getLatestVisitsByEmail(rawItems.map((c) => c.email));
+
+  return {
+    items: rawItems.map((c) => serializeCustomer(c, visitByEmail)),
+    meta: buildMeta(page, limit, total),
+  };
 }
 
 export async function getCustomerById(id: string) {
   const customer = await prisma.customer.findUnique({ where: { id }, include: customerInclude });
   if (!customer) throw new AppError(404, 'NOT_FOUND', 'Customer not found');
-  return serializeCustomer(customer);
+  const visitByEmail = await getLatestVisitsByEmail([customer.email]);
+  return serializeCustomer(customer, visitByEmail);
 }

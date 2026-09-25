@@ -310,6 +310,7 @@ model User {
   pushSubscriptions PushSubscription[]
   addresses         Address[]
   reviews           Review[]
+  visits            Visit[]
 
   @@map("users")
 }
@@ -437,6 +438,30 @@ model Review {
   @@index([productId])
   @@index([userId])
   @@map("reviews")
+}
+
+// One row per storefront session — where the visitor is browsing from
+// (IP-based geolocation) and what they're browsing with (parsed from their
+// User-Agent). Tied to User when signed in, but also recorded for signed-out
+// visitors so overall traffic patterns are visible, not just customers'.
+model Visit {
+  id         String   @id @default(uuid())
+  userId     String?  @map("user_id")
+  ipAddress  String   @map("ip_address")
+  country    String?
+  region     String?
+  city       String?
+  deviceType String   @map("device_type")
+  os         String?
+  browser    String?
+  userAgent  String   @map("user_agent")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([createdAt])
+  @@map("visits")
 }
 
 // Footer "Stay Connected" opt-in — deliberately not tied to User, since a
