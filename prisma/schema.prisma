@@ -347,6 +347,8 @@ model PushNotification {
   title        String
   body         String
   url          String?
+  image        String?
+  actions      Json?
   targetUserId String?  @map("target_user_id")
   successCount Int      @default(0) @map("success_count")
   failureCount Int      @default(0) @map("failure_count")
@@ -361,6 +363,8 @@ model NotificationTemplate {
   title     String
   body      String
   url       String?
+  image     String?
+  actions   Json?
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 

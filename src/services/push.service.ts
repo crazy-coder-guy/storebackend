@@ -63,6 +63,8 @@ export async function sendNotification(input: SendNotificationInput) {
     title: input.title,
     body: input.body,
     url: input.url ?? '/',
+    image: input.image,
+    actions: input.actions,
   });
 
   let successCount = 0;
@@ -98,6 +100,8 @@ export async function sendNotification(input: SendNotificationInput) {
       title: input.title,
       body: input.body,
       url: input.url ?? null,
+      image: input.image ?? null,
+      actions: input.actions ?? undefined,
       targetUserId: input.userId ?? null,
       successCount,
       failureCount,
@@ -134,6 +138,8 @@ export async function createTemplate(input: CreateTemplateInput) {
       title: input.title,
       body: input.body,
       url: input.url ?? null,
+      image: input.image ?? null,
+      actions: input.actions ?? undefined,
     },
   });
 }
