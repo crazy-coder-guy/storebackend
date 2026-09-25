@@ -32,14 +32,27 @@ export async function updateStorefrontSettings(input: UpdateStorefrontSettingsIn
 
 const featuredProductInclude = {
   product: {
-    include: { category: true, images: true },
+    include: {
+      category: true,
+      images: true,
+      variants: { where: { status: 'ACTIVE' }, select: { color: true } },
+    },
   },
 } as const;
 
 export async function listFeaturedProducts() {
-  return prisma.featuredProduct.findMany({
+  const rows = await prisma.featuredProduct.findMany({
     include: featuredProductInclude,
     orderBy: { sortOrder: 'asc' },
+  });
+
+  return rows.map(({ product, ...featured }) => {
+    const { variants, ...productRest } = product;
+    const colorMap = new Map<string, (typeof variants)[number]['color']>();
+    for (const variant of variants) {
+      if (variant.color) colorMap.set(variant.color.id, variant.color);
+    }
+    return { ...featured, product: { ...productRest, colors: [...colorMap.values()] } };
   });
 }
 
