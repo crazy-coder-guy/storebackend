@@ -7,7 +7,6 @@ export const orderItemInputSchema = z.object({
 
 export const createOrderSchema = z.object({
   customerName: z.string().min(1).max(255),
-  customerEmail: z.string().email(),
   customerPhone: z.string().min(1).max(50),
   shippingAddress: z.string().min(1),
   paymentStatus: z.enum(['PAID', 'UNPAID', 'REFUNDED']).optional(),

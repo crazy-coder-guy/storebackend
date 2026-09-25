@@ -1105,10 +1105,9 @@ const orderSchema = {
 
 const createOrderSchemaDoc = {
   type: 'object',
-  required: ['customerName', 'customerEmail', 'customerPhone', 'shippingAddress', 'items'],
+  required: ['customerName', 'customerPhone', 'shippingAddress', 'items'],
   properties: {
     customerName: { type: 'string' },
-    customerEmail: { type: 'string', format: 'email' },
     customerPhone: { type: 'string' },
     shippingAddress: { type: 'string' },
     paymentStatus: { type: 'string', enum: ['PAID', 'UNPAID', 'REFUNDED'] },
@@ -1188,7 +1187,8 @@ const ordersPaths = {
       tags: ['Orders'],
       summary: 'Create an order',
       description:
-        'Finds or creates the customer by email, decrements stock for each line item (rejecting if insufficient), and computes the order total from current variant/product pricing.',
+        "Finds or creates the customer using the signed-in account's email (never a client-supplied one), decrements stock for each line item (rejecting if insufficient), computes the order total from current variant/product pricing plus delivery fee, and saves the recipient name/phone/shipping address to the account's saved addresses.",
+      security: [{ bearerAuth: [] }],
       requestBody: { content: { 'application/json': { schema: createOrderSchemaDoc } } },
       responses: {
         '201': {
@@ -1357,6 +1357,26 @@ const cartItemSchema = {
   },
 };
 
+const cartSummarySchema = {
+  type: 'object',
+  properties: {
+    subtotal: { type: 'number' },
+    mrpTotal: { type: 'number' },
+    discount: { type: 'number' },
+    deliveryFee: { type: 'number' },
+    total: { type: 'number' },
+    freeDeliveryThreshold: { type: 'number' },
+  },
+};
+
+const cartResponseSchema = {
+  type: 'object',
+  properties: {
+    items: { type: 'array', items: cartItemSchema },
+    summary: cartSummarySchema,
+  },
+};
+
 const cartPaths = {
   '/v1/cart': {
     get: {
@@ -1366,7 +1386,7 @@ const cartPaths = {
       responses: {
         '200': {
           description: 'Cart fetched',
-          content: { 'application/json': { schema: successEnvelope({ type: 'array', items: cartItemSchema }) } },
+          content: { 'application/json': { schema: successEnvelope(cartResponseSchema) } },
         },
         ...errorResponses,
       },
@@ -1378,7 +1398,7 @@ const cartPaths = {
       responses: {
         '200': {
           description: 'Cart cleared',
-          content: { 'application/json': { schema: successEnvelope({ type: 'array', items: cartItemSchema }) } },
+          content: { 'application/json': { schema: successEnvelope(cartResponseSchema) } },
         },
         ...errorResponses,
       },
@@ -1406,7 +1426,7 @@ const cartPaths = {
       responses: {
         '201': {
           description: 'Item added',
-          content: { 'application/json': { schema: successEnvelope({ type: 'array', items: cartItemSchema }) } },
+          content: { 'application/json': { schema: successEnvelope(cartResponseSchema) } },
         },
         ...errorResponses,
       },
@@ -1428,7 +1448,7 @@ const cartPaths = {
       responses: {
         '200': {
           description: 'Cart item updated',
-          content: { 'application/json': { schema: successEnvelope({ type: 'array', items: cartItemSchema }) } },
+          content: { 'application/json': { schema: successEnvelope(cartResponseSchema) } },
         },
         ...errorResponses,
       },
@@ -1441,8 +1461,74 @@ const cartPaths = {
       responses: {
         '200': {
           description: 'Item removed',
-          content: { 'application/json': { schema: successEnvelope({ type: 'array', items: cartItemSchema }) } },
+          content: { 'application/json': { schema: successEnvelope(cartResponseSchema) } },
         },
+        ...errorResponses,
+      },
+    },
+  },
+};
+
+const addressSchema = {
+  type: 'object',
+  properties: {
+    id: { type: 'string', format: 'uuid' },
+    userId: { type: 'string', format: 'uuid' },
+    name: { type: 'string' },
+    phone: { type: 'string' },
+    shippingAddress: { type: 'string' },
+    createdAt: { type: 'string', format: 'date-time' },
+  },
+};
+
+const saveAddressSchemaDoc = {
+  type: 'object',
+  required: ['name', 'phone', 'shippingAddress'],
+  properties: {
+    name: { type: 'string' },
+    phone: { type: 'string' },
+    shippingAddress: { type: 'string' },
+  },
+};
+
+const addressesPaths = {
+  '/v1/addresses': {
+    get: {
+      tags: ['Addresses'],
+      summary: "List the signed-in account's saved checkout addresses (newest first, max 3)",
+      security: [{ bearerAuth: [] }],
+      responses: {
+        '200': {
+          description: 'Addresses fetched',
+          content: { 'application/json': { schema: successEnvelope({ type: 'array', items: addressSchema }) } },
+        },
+        ...errorResponses,
+      },
+    },
+    post: {
+      tags: ['Addresses'],
+      summary: 'Save a checkout address',
+      description:
+        'Capped at 3 addresses per account — saving a 4th automatically evicts the oldest. Saving an address identical to an existing one returns that existing one instead of duplicating it.',
+      security: [{ bearerAuth: [] }],
+      requestBody: { content: { 'application/json': { schema: saveAddressSchemaDoc } } },
+      responses: {
+        '201': {
+          description: 'Address saved',
+          content: { 'application/json': { schema: successEnvelope(addressSchema) } },
+        },
+        ...errorResponses,
+      },
+    },
+  },
+  '/v1/addresses/{id}': {
+    delete: {
+      tags: ['Addresses'],
+      summary: 'Delete a saved address',
+      security: [{ bearerAuth: [] }],
+      parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
+      responses: {
+        '200': { description: 'Address deleted', content: { 'application/json': { schema: successEnvelope({ type: 'null' }) } } },
         ...errorResponses,
       },
     },
@@ -1617,5 +1703,6 @@ export const openApiSpec = {
     ...customersPaths,
     ...cartPaths,
     ...favoritesPaths,
+    ...addressesPaths,
   },
 };

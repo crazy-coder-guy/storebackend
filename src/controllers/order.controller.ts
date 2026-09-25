@@ -29,7 +29,7 @@ export const getMyOrders = asyncHandler(async (req: Request, res: Response) => {
 });
 
 export const createOrder = asyncHandler(async (req: Request, res: Response) => {
-  const order = await orderService.createOrder(req.body);
+  const order = await orderService.createOrder(req.authUser!.id, req.authUser!.email, req.body);
   return sendSuccess(res, order, 'Order created', 201);
 });
 

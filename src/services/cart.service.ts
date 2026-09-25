@@ -2,6 +2,7 @@ import { Prisma } from '@prisma/client';
 import { prisma } from '../database/prisma';
 import { AppError } from '../utils/AppError';
 import { AddCartItemInput, UpdateCartItemInput } from '../validation/cart.validation';
+import { FREE_DELIVERY_THRESHOLD, calculateDeliveryFee } from '../utils/pricing';
 
 const cartItemInclude = {
   variant: {
@@ -59,9 +60,29 @@ async function getCartItems(cartId: string) {
   return items.map(serializeCartItem);
 }
 
+function buildCartSummary(items: ReturnType<typeof serializeCartItem>[]) {
+  const subtotal = items.reduce((sum, item) => sum + item.price * item.quantity, 0);
+  const mrpTotal = items.reduce((sum, item) => sum + item.mrp * item.quantity, 0);
+  const discount = Math.max(0, mrpTotal - subtotal);
+  const deliveryFee = calculateDeliveryFee(subtotal);
+  return {
+    subtotal,
+    mrpTotal,
+    discount,
+    deliveryFee,
+    total: subtotal + deliveryFee,
+    freeDeliveryThreshold: FREE_DELIVERY_THRESHOLD,
+  };
+}
+
+async function getCartWithSummary(cartId: string) {
+  const items = await getCartItems(cartId);
+  return { items, summary: buildCartSummary(items) };
+}
+
 export async function getCart(userId: string) {
   const cart = await getOrCreateCart(userId);
-  return getCartItems(cart.id);
+  return getCartWithSummary(cart.id);
 }
 
 export async function addCartItem(userId: string, input: AddCartItemInput) {
@@ -80,7 +101,7 @@ export async function addCartItem(userId: string, input: AddCartItemInput) {
     create: { cartId: cart.id, variantId: input.variantId, quantity: input.quantity },
   });
 
-  return getCartItems(cart.id);
+  return getCartWithSummary(cart.id);
 }
 
 async function getOwnedCartItem(cartId: string, itemId: string) {
@@ -99,18 +120,18 @@ export async function updateCartItem(userId: string, itemId: string, input: Upda
     await prisma.cartItem.update({ where: { id: item.id }, data: { quantity: input.quantity } });
   }
 
-  return getCartItems(cart.id);
+  return getCartWithSummary(cart.id);
 }
 
 export async function removeCartItem(userId: string, itemId: string) {
   const cart = await getOrCreateCart(userId);
   const item = await getOwnedCartItem(cart.id, itemId);
   await prisma.cartItem.delete({ where: { id: item.id } });
-  return getCartItems(cart.id);
+  return getCartWithSummary(cart.id);
 }
 
 export async function clearCart(userId: string) {
   const cart = await getOrCreateCart(userId);
   await prisma.cartItem.deleteMany({ where: { cartId: cart.id } });
-  return [];
+  return { items: [], summary: buildCartSummary([]) };
 }

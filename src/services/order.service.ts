@@ -4,6 +4,8 @@ import { AppError } from '../utils/AppError';
 import { buildMeta } from '../utils/pagination';
 import { CreateOrderInput } from '../validation/order.validation';
 import * as orderNotificationService from './orderNotification.service';
+import { calculateDeliveryFee } from '../utils/pricing';
+import * as addressService from './address.service';
 
 interface ListOrdersParams {
   page: number;
@@ -121,12 +123,12 @@ export async function listMyOrders(email: string) {
   return orders.map(serializeOrder);
 }
 
-export async function createOrder(input: CreateOrderInput) {
+export async function createOrder(userId: string, authedEmail: string, input: CreateOrderInput) {
   const orderId = await prisma.$transaction(async (tx) => {
     const customer = await tx.customer.upsert({
-      where: { email: input.customerEmail },
+      where: { email: authedEmail },
       update: { name: input.customerName, phone: input.customerPhone },
-      create: { name: input.customerName, email: input.customerEmail, phone: input.customerPhone },
+      create: { name: input.customerName, email: authedEmail, phone: input.customerPhone },
     });
 
     const variantIds = input.items.map((item) => item.variantId);
@@ -155,6 +157,8 @@ export async function createOrder(input: CreateOrderInput) {
       totalAmount = totalAmount.add(unitPrice.mul(line.quantity));
       itemsData.push({ variantId: variant.id, quantity: line.quantity, unitPrice });
     }
+
+    totalAmount = totalAmount.add(calculateDeliveryFee(Number(totalAmount)));
 
     const orderNumber = `#ORD-${1000 + (await tx.order.count()) + 1}`;
 
@@ -186,6 +190,12 @@ export async function createOrder(input: CreateOrderInput) {
     }
 
     return order.id;
+  });
+
+  await addressService.saveAddress(userId, {
+    name: input.customerName,
+    phone: input.customerPhone,
+    shippingAddress: input.shippingAddress,
   });
 
   return getOrderById(orderId);

@@ -11,7 +11,7 @@ const router = Router();
 router.get('/', listOrders);
 router.get('/mine', requireAuth, getMyOrders);
 router.get('/:id', getOrder);
-router.post('/', validate(createOrderSchema), createOrder);
+router.post('/', requireAuth, validate(createOrderSchema), createOrder);
 router.patch('/:id/status', validate(updateOrderStatusSchema), updateOrderStatus);
 router.post('/:id/razorpay-order', createRazorpayOrder);
 router.post('/:id/razorpay-verify', validate(verifyPaymentSchema), verifyPayment);

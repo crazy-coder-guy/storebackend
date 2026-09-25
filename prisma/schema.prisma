@@ -306,8 +306,26 @@ model User {
   cart              Cart?
   favorites         Favorite[]
   pushSubscriptions PushSubscription[]
+  addresses         Address[]
 
   @@map("users")
+}
+
+// Saved checkout recipient profiles (name + phone + shipping address),
+// capped at 3 per user by address.service.ts — the oldest is evicted when a
+// new one is saved past the cap, so this table never needs its own cleanup.
+model Address {
+  id              String   @id @default(uuid())
+  userId          String   @map("user_id")
+  name            String
+  phone           String
+  shippingAddress String   @map("shipping_address")
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("addresses")
 }
 
 model PushSubscription {

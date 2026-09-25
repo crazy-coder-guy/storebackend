@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import addressRoutes from './address.routes';
 import cartRoutes from './cart.routes';
 import categoryRoutes from './category.routes';
 import colorRoutes from './color.routes';
@@ -32,6 +33,7 @@ v1.use('/customers', customerRoutes);
 v1.use('/cart', cartRoutes);
 v1.use('/favorites', favoriteRoutes);
 v1.use('/push', pushRoutes);
+v1.use('/addresses', addressRoutes);
 
 router.use('/v1', v1);
 
