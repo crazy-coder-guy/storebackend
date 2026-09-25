@@ -241,24 +241,19 @@ model SearchLog {
   @@map("search_logs")
 }
 
-model Customer {
-  id        String       @id @default(uuid())
-  name      String
-  email     String       @unique
-  phone     String
-  status    EntityStatus @default(ACTIVE)
-  createdAt DateTime     @default(now()) @map("created_at")
-  updatedAt DateTime     @updatedAt @map("updated_at")
-
-  orders Order[]
-
-  @@map("customers")
-}
-
+// A signed-in order's name/phone/email are stored directly on Order as a
+// snapshot at checkout time (like shippingAddress already was) rather than
+// through a separate Customer entity — checkout requires auth, so the
+// buyer's account is always `user`, and their name/phone can differ per
+// order (e.g. ordering for someone else) without that history being
+// overwritten by a later profile edit.
 model Order {
   id                String        @id @default(uuid())
   orderNumber       String        @unique @map("order_number")
-  customerId        String        @map("customer_id")
+  userId            String        @map("user_id")
+  customerName      String        @map("customer_name")
+  customerPhone     String        @map("customer_phone")
+  customerEmail     String        @map("customer_email")
   status            OrderStatus   @default(PENDING)
   paymentStatus     PaymentStatus @default(UNPAID) @map("payment_status")
   totalAmount       Decimal       @map("total_amount")
@@ -269,11 +264,11 @@ model Order {
   createdAt         DateTime      @default(now()) @map("created_at")
   updatedAt         DateTime      @updatedAt @map("updated_at")
 
-  customer Customer    @relation(fields: [customerId], references: [id], onDelete: Restrict)
-  items    OrderItem[]
-  reviews  Review[]
+  user  User        @relation(fields: [userId], references: [id], onDelete: Restrict)
+  items OrderItem[]
+  reviews Review[]
 
-  @@index([customerId])
+  @@index([userId])
   @@index([status])
   @@map("orders")
 }
@@ -294,16 +289,17 @@ model OrderItem {
 }
 
 // A storefront account, created on first successful Google sign-in
-// (Firebase Auth). Not the same as Customer, which is a per-order billing
-// contact and may never correspond to an authenticated account.
+// (Firebase Auth) — also the "customer" record admin sees, since checkout
+// now always requires being signed in.
 model User {
-  id          String   @id @default(uuid())
-  firebaseUid String   @unique @map("firebase_uid")
-  email       String   @unique
+  id          String       @id @default(uuid())
+  firebaseUid String       @unique @map("firebase_uid")
+  email       String       @unique
   name        String?
-  photoUrl    String?  @map("photo_url")
-  createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @updatedAt @map("updated_at")
+  photoUrl    String?      @map("photo_url")
+  status      EntityStatus @default(ACTIVE)
+  createdAt   DateTime     @default(now()) @map("created_at")
+  updatedAt   DateTime     @updatedAt @map("updated_at")
 
   cart              Cart?
   favorites         Favorite[]
@@ -311,6 +307,7 @@ model User {
   addresses         Address[]
   reviews           Review[]
   visits            Visit[]
+  orders            Order[]
 
   @@map("users")
 }

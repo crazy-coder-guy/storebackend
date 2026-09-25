@@ -81,9 +81,9 @@ export async function listProductReviews(
   };
 }
 
-export async function listReviewableOrders(userId: string, email: string) {
+export async function listReviewableOrders(userId: string) {
   const orders = await prisma.order.findMany({
-    where: { status: 'DELIVERED', customer: { email } },
+    where: { status: 'DELIVERED', userId },
     include: {
       items: {
         include: {
@@ -129,9 +129,9 @@ export async function listReviewableOrders(userId: string, email: string) {
   return reviewable;
 }
 
-async function assertEligibleOrder(userId: string, email: string, orderId: string, productId: string) {
+async function assertEligibleOrder(userId: string, orderId: string, productId: string) {
   const order = await prisma.order.findFirst({
-    where: { id: orderId, status: 'DELIVERED', customer: { email } },
+    where: { id: orderId, status: 'DELIVERED', userId },
     include: { items: { include: { variant: true } } },
   });
   if (!order) {
@@ -150,12 +150,11 @@ async function assertEligibleOrder(userId: string, email: string, orderId: strin
 
 export async function createReview(
   userId: string,
-  email: string,
   productId: string,
   input: CreateReviewInput,
   files: { images?: Express.Multer.File[]; video?: Express.Multer.File[] }
 ) {
-  await assertEligibleOrder(userId, email, input.orderId, productId);
+  await assertEligibleOrder(userId, input.orderId, productId);
 
   const images = await Promise.all(
     (files.images ?? []).map(async (file) => {
@@ -204,7 +203,6 @@ export async function listAllReviews(params: { page: number; limit: number; skip
         product: { select: { id: true, name: true, slug: true } },
         order: {
           include: {
-            customer: true,
             items: {
               include: {
                 variant: {
@@ -249,9 +247,9 @@ export async function listAllReviews(params: { page: number; limit: number; skip
       totalAmount: review.order.totalAmount,
       shippingAddress: review.order.shippingAddress,
       createdAt: review.order.createdAt,
-      customerName: review.order.customer.name,
-      customerEmail: review.order.customer.email,
-      customerPhone: review.order.customer.phone,
+      customerName: review.order.customerName,
+      customerEmail: review.order.customerEmail,
+      customerPhone: review.order.customerPhone,
       items: review.order.items.map((item) => ({
         id: item.id,
         productId: item.variant.productId,

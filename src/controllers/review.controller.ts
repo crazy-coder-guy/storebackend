@@ -15,7 +15,6 @@ export const createReview = asyncHandler(async (req: Request, res: Response) => 
   const files = req.files as { images?: Express.Multer.File[]; video?: Express.Multer.File[] } | undefined;
   const review = await reviewService.createReview(
     req.authUser!.id,
-    req.authUser!.email,
     req.params.productId,
     req.body,
     files ?? {}
@@ -29,7 +28,7 @@ export const deleteOwnReview = asyncHandler(async (req: Request, res: Response) 
 });
 
 export const listReviewableOrders = asyncHandler(async (req: Request, res: Response) => {
-  const items = await reviewService.listReviewableOrders(req.authUser!.id, req.authUser!.email);
+  const items = await reviewService.listReviewableOrders(req.authUser!.id);
   return sendSuccess(res, items, 'Reviewable products fetched');
 });
 

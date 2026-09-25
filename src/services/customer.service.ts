@@ -13,46 +13,44 @@ interface ListCustomersParams {
   status?: EntityStatus;
 }
 
-const customerInclude = {
-  orders: { select: { totalAmount: true, createdAt: true } },
-} satisfies Prisma.CustomerInclude;
+const userInclude = {
+  orders: {
+    select: { totalAmount: true, createdAt: true, customerPhone: true },
+    orderBy: { createdAt: 'desc' },
+  },
+} satisfies Prisma.UserInclude;
 
-type CustomerWithOrders = Prisma.CustomerGetPayload<{ include: typeof customerInclude }>;
+type UserWithOrders = Prisma.UserGetPayload<{ include: typeof userInclude }>;
 
-function serializeCustomer(customer: CustomerWithOrders, visitByEmail: Map<string, VisitInfo>) {
-  const ordersCount = customer.orders.length;
-  const totalSpent = customer.orders.reduce(
-    (sum, order) => sum.add(order.totalAmount),
-    new Prisma.Decimal(0)
-  );
-  const lastOrderAt = customer.orders.reduce<Date | null>((latest, order) => {
-    return !latest || order.createdAt > latest ? order.createdAt : latest;
-  }, null);
+function serializeCustomer(user: UserWithOrders, visitByEmail: Map<string, VisitInfo>) {
+  const ordersCount = user.orders.length;
+  const totalSpent = user.orders.reduce((sum, order) => sum.add(order.totalAmount), new Prisma.Decimal(0));
+  const lastOrder = user.orders[0];
 
   return {
-    id: customer.id,
-    name: customer.name,
-    email: customer.email,
-    phone: customer.phone,
-    status: customer.status,
+    id: user.id,
+    name: user.name ?? user.email.split('@')[0],
+    email: user.email,
+    phone: lastOrder?.customerPhone ?? '',
+    status: user.status,
     ordersCount,
     totalSpent,
-    lastOrderAt: lastOrderAt ?? customer.createdAt,
-    createdAt: customer.createdAt,
-    lastVisit: visitByEmail.get(customer.email) ?? null,
+    lastOrderAt: lastOrder?.createdAt ?? user.createdAt,
+    createdAt: user.createdAt,
+    lastVisit: visitByEmail.get(user.email) ?? null,
   };
 }
 
 export async function listCustomers(params: ListCustomersParams) {
   const { page, limit, skip, take, search, status } = params;
 
-  const where: Prisma.CustomerWhereInput = {
+  const where: Prisma.UserWhereInput = {
     ...(search?.trim()
       ? {
           OR: [
             { name: { contains: search, mode: 'insensitive' } },
             { email: { contains: search, mode: 'insensitive' } },
-            { phone: { contains: search, mode: 'insensitive' } },
+            { orders: { some: { customerPhone: { contains: search, mode: 'insensitive' } } } },
           ],
         }
       : {}),
@@ -60,27 +58,27 @@ export async function listCustomers(params: ListCustomersParams) {
   };
 
   const [rawItems, total] = await Promise.all([
-    prisma.customer.findMany({
+    prisma.user.findMany({
       where,
       skip,
       take,
-      include: customerInclude,
+      include: userInclude,
       orderBy: { createdAt: 'desc' },
     }),
-    prisma.customer.count({ where }),
+    prisma.user.count({ where }),
   ]);
 
-  const visitByEmail = await getLatestVisitsByEmail(rawItems.map((c) => c.email));
+  const visitByEmail = await getLatestVisitsByEmail(rawItems.map((u) => u.email));
 
   return {
-    items: rawItems.map((c) => serializeCustomer(c, visitByEmail)),
+    items: rawItems.map((u) => serializeCustomer(u, visitByEmail)),
     meta: buildMeta(page, limit, total),
   };
 }
 
 export async function getCustomerById(id: string) {
-  const customer = await prisma.customer.findUnique({ where: { id }, include: customerInclude });
-  if (!customer) throw new AppError(404, 'NOT_FOUND', 'Customer not found');
-  const visitByEmail = await getLatestVisitsByEmail([customer.email]);
-  return serializeCustomer(customer, visitByEmail);
+  const user = await prisma.user.findUnique({ where: { id }, include: userInclude });
+  if (!user) throw new AppError(404, 'NOT_FOUND', 'Customer not found');
+  const visitByEmail = await getLatestVisitsByEmail([user.email]);
+  return serializeCustomer(user, visitByEmail);
 }

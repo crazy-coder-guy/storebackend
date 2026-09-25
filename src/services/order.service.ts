@@ -1,5 +1,6 @@
 import { OrderStatus, Prisma } from '@prisma/client';
 import { prisma } from '../database/prisma';
+import { prismaDirect } from '../database/prismaDirect';
 import { AppError } from '../utils/AppError';
 import { buildMeta } from '../utils/pagination';
 import { CreateOrderInput } from '../validation/order.validation';
@@ -18,7 +19,6 @@ interface ListOrdersParams {
 }
 
 const orderInclude = {
-  customer: true,
   items: {
     include: {
       variant: {
@@ -43,10 +43,10 @@ function serializeOrder(order: OrderWithRelations) {
   return {
     id: order.id,
     orderNumber: order.orderNumber,
-    customerId: order.customerId,
-    customerName: order.customer.name,
-    customerEmail: order.customer.email,
-    customerPhone: order.customer.phone,
+    userId: order.userId,
+    customerName: order.customerName,
+    customerEmail: order.customerEmail,
+    customerPhone: order.customerPhone,
     status: order.status,
     paymentStatus: order.paymentStatus,
     totalAmount: order.totalAmount,
@@ -77,8 +77,8 @@ export async function listOrders(params: ListOrdersParams) {
       ? {
           OR: [
             { orderNumber: { contains: search, mode: 'insensitive' } },
-            { customer: { name: { contains: search, mode: 'insensitive' } } },
-            { customer: { email: { contains: search, mode: 'insensitive' } } },
+            { customerName: { contains: search, mode: 'insensitive' } },
+            { customerEmail: { contains: search, mode: 'insensitive' } },
           ],
         }
       : {}),
@@ -110,15 +110,9 @@ export async function getOrderById(id: string) {
   return serializeOrder(await getOrderRaw(id));
 }
 
-/**
- * Orders link to a Customer (matched by email at checkout), not to the
- * Firebase-authenticated User — so "my orders" is resolved by matching the
- * signed-in account's email against Customer.email rather than a direct
- * foreign key.
- */
-export async function listMyOrders(email: string) {
+export async function listMyOrders(userId: string) {
   const orders = await prisma.order.findMany({
-    where: { customer: { email } },
+    where: { userId },
     include: orderInclude,
     orderBy: { createdAt: 'desc' },
   });
@@ -126,13 +120,7 @@ export async function listMyOrders(email: string) {
 }
 
 export async function createOrder(userId: string, authedEmail: string, input: CreateOrderInput) {
-  const orderId = await prisma.$transaction(async (tx) => {
-    const customer = await tx.customer.upsert({
-      where: { email: authedEmail },
-      update: { name: input.customerName, phone: input.customerPhone },
-      create: { name: input.customerName, email: authedEmail, phone: input.customerPhone },
-    });
-
+  const orderId = await prismaDirect.$transaction(async (tx) => {
     const variantIds = input.items.map((item) => item.variantId);
     const variants = await tx.productVariant.findMany({
       where: { id: { in: variantIds } },
@@ -167,7 +155,10 @@ export async function createOrder(userId: string, authedEmail: string, input: Cr
     const order = await tx.order.create({
       data: {
         orderNumber,
-        customerId: customer.id,
+        userId,
+        customerName: input.customerName,
+        customerPhone: input.customerPhone,
+        customerEmail: authedEmail,
         paymentStatus: input.paymentStatus ?? 'UNPAID',
         totalAmount,
         shippingAddress: input.shippingAddress,
@@ -208,7 +199,7 @@ export async function updateOrderStatus(id: string, status: OrderStatus) {
   const statusChanged = order.status !== status;
 
   if (status === 'CANCELLED' && order.status !== 'CANCELLED') {
-    await prisma.$transaction(async (tx) => {
+    await prismaDirect.$transaction(async (tx) => {
       for (const item of order.items) {
         const variant = await tx.productVariant.findUnique({ where: { id: item.variantId } });
         if (!variant) continue;

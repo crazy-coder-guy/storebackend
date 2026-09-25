@@ -1089,7 +1089,7 @@ const orderSchema = {
   properties: {
     id: { type: 'string', format: 'uuid' },
     orderNumber: { type: 'string' },
-    customerId: { type: 'string', format: 'uuid' },
+    userId: { type: 'string', format: 'uuid' },
     customerName: { type: 'string' },
     customerEmail: { type: 'string' },
     customerPhone: { type: 'string' },

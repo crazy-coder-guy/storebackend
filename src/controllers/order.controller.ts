@@ -24,7 +24,7 @@ export const getOrder = asyncHandler(async (req: Request, res: Response) => {
 });
 
 export const getMyOrders = asyncHandler(async (req: Request, res: Response) => {
-  const orders = await orderService.listMyOrders(req.authUser!.email);
+  const orders = await orderService.listMyOrders(req.authUser!.id);
   return sendSuccess(res, orders, 'Your orders fetched');
 });
 
