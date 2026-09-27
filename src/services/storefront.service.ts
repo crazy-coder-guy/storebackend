@@ -35,7 +35,7 @@ const featuredProductInclude = {
     include: {
       category: true,
       images: true,
-      variants: { where: { status: 'ACTIVE' }, select: { color: true } },
+      variants: { where: { status: 'ACTIVE' }, select: { color: true, stockQuantity: true } },
     },
   },
 } as const;
@@ -52,7 +52,8 @@ export async function listFeaturedProducts() {
     for (const variant of variants) {
       if (variant.color) colorMap.set(variant.color.id, variant.color);
     }
-    return { ...featured, product: { ...productRest, colors: [...colorMap.values()] } };
+    const inStock = variants.some((v) => v.stockQuantity > 0);
+    return { ...featured, product: { ...productRest, colors: [...colorMap.values()], inStock } };
   });
 }
 

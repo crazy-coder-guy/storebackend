@@ -140,7 +140,9 @@ export async function createOrder(userId: string, authedEmail: string, input: Cr
         throw new AppError(
           422,
           'INSUFFICIENT_STOCK',
-          `Not enough stock for SKU ${variant.sku}: only ${variant.stockQuantity} available`
+          variant.stockQuantity === 0
+            ? `Sorry, "${variant.product.name}" just sold out. Please remove it from your cart to continue.`
+            : `Sorry, only ${variant.stockQuantity} left of "${variant.product.name}". Please update the quantity in your cart.`
         );
       }
       const unitPrice = new Prisma.Decimal(variant.price ?? variant.product.basePrice);

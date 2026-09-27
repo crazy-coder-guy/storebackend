@@ -34,7 +34,7 @@ function serializeCartItem(item: CartItemWithRelations) {
     price: Number(variant.price ?? product.basePrice),
     mrp: Number(product.mrp),
     image: product.images[0]?.imageUrl ?? null,
-    size: variant.size.name,
+    size: variant.size.code || variant.size.name,
     color: { name: variant.color.name, hex: variant.color.hexCode },
     quantity: item.quantity,
     stockQuantity: variant.stockQuantity,
@@ -86,14 +86,36 @@ export async function getCart(userId: string) {
   return getCartWithSummary(cart.id);
 }
 
+// A stale UI (or a race with someone else buying the last unit) can still
+// ask for more than is left — reject clearly here rather than letting an
+// over-quantity line sit in the cart until checkout rejects the whole order.
+function assertStockAvailable(productName: string, availableStock: number, desiredQuantity: number) {
+  if (desiredQuantity <= availableStock) return;
+  if (availableStock === 0) {
+    throw new AppError(422, 'INSUFFICIENT_STOCK', `Sorry, "${productName}" just sold out.`);
+  }
+  throw new AppError(
+    422,
+    'INSUFFICIENT_STOCK',
+    `Sorry, only ${availableStock} left of "${productName}". Please lower the quantity.`
+  );
+}
+
 export async function addCartItem(userId: string, input: AddCartItemInput) {
-  const variant = await prisma.productVariant.findUnique({ where: { id: input.variantId } });
+  const variant = await prisma.productVariant.findUnique({
+    where: { id: input.variantId },
+    include: { product: { select: { name: true } } },
+  });
   if (!variant) throw new AppError(404, 'NOT_FOUND', 'Product variant not found');
   if (variant.status !== 'ACTIVE') {
     throw new AppError(422, 'VARIANT_INACTIVE', 'This product option is no longer available');
   }
 
   const cart = await getOrCreateCart(userId);
+  const existing = await prisma.cartItem.findUnique({
+    where: { cartId_variantId: { cartId: cart.id, variantId: input.variantId } },
+  });
+  assertStockAvailable(variant.product.name, variant.stockQuantity, (existing?.quantity ?? 0) + input.quantity);
 
   // upsert replaces the previous find-then-create/update pair with one call.
   await prisma.cartItem.upsert({
@@ -106,7 +128,10 @@ export async function addCartItem(userId: string, input: AddCartItemInput) {
 }
 
 async function getOwnedCartItem(cartId: string, itemId: string) {
-  const item = await prisma.cartItem.findFirst({ where: { id: itemId, cartId } });
+  const item = await prisma.cartItem.findFirst({
+    where: { id: itemId, cartId },
+    include: { variant: { include: { product: { select: { name: true } } } } },
+  });
   if (!item) throw new AppError(404, 'NOT_FOUND', 'Cart item not found');
   return item;
 }
@@ -118,6 +143,7 @@ export async function updateCartItem(userId: string, itemId: string, input: Upda
   if (input.quantity <= 0) {
     await prisma.cartItem.delete({ where: { id: item.id } });
   } else {
+    assertStockAvailable(item.variant.product.name, item.variant.stockQuantity, input.quantity);
     await prisma.cartItem.update({ where: { id: item.id }, data: { quantity: input.quantity } });
   }
 

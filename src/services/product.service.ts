@@ -118,7 +118,7 @@ export async function listProducts(params: ListProductsParams) {
         images: { orderBy: [{ isPrimary: 'desc' }, { sortOrder: 'asc' }], include: { color: true } },
         variants: {
           where: { status: 'ACTIVE' },
-          select: { size: true, color: true },
+          select: { size: true, color: true, stockQuantity: true },
         },
       },
     }),
@@ -134,7 +134,8 @@ export async function listProducts(params: ListProductsParams) {
     }
     const sizes = [...sizeMap.values()].sort((a, b) => a.sortOrder - b.sortOrder);
     const colors = [...colorMap.values()].sort((a, b) => a.name.localeCompare(b.name));
-    return { ...product, sizes, colors };
+    const inStock = variants.some((v) => v.stockQuantity > 0);
+    return { ...product, sizes, colors, inStock };
   });
 
   return { items, meta: buildMeta(page, limit, total) };
