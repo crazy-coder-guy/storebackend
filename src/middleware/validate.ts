@@ -1,5 +1,5 @@
 import { NextFunction, Request, Response } from 'express';
-import { AnyZodObject, ZodError } from 'zod';
+import { ZodError, ZodTypeAny } from 'zod';
 import { AppError } from '../utils/AppError';
 
 type ValidateTarget = 'body' | 'query' | 'params';
@@ -10,7 +10,7 @@ function formatZodError(err: ZodError): string {
     .join('; ');
 }
 
-export const validate = (schema: AnyZodObject, target: ValidateTarget = 'body') => {
+export const validate = (schema: ZodTypeAny, target: ValidateTarget = 'body') => {
   return (req: Request, _res: Response, next: NextFunction) => {
     const result = schema.safeParse(req[target]);
     if (!result.success) {

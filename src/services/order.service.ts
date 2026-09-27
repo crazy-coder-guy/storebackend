@@ -197,6 +197,7 @@ export async function createOrder(userId: string, authedEmail: string, input: Cr
 export async function updateOrderStatus(id: string, status: OrderStatus) {
   const order = await getOrderRaw(id);
   const statusChanged = order.status !== status;
+  const statusData = { status, ...(status === 'DELIVERED' ? { deliveredAt: new Date() } : {}) };
 
   if (status === 'CANCELLED' && order.status !== 'CANCELLED') {
     await prismaDirect.$transaction(async (tx) => {
@@ -216,10 +217,10 @@ export async function updateOrderStatus(id: string, status: OrderStatus) {
           },
         });
       }
-      await tx.order.update({ where: { id }, data: { status } });
+      await tx.order.update({ where: { id }, data: statusData });
     });
   } else {
-    await prisma.order.update({ where: { id }, data: { status } });
+    await prisma.order.update({ where: { id }, data: statusData });
   }
 
   const updated = await getOrderById(id);

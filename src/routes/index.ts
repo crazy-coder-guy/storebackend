@@ -5,6 +5,7 @@ import categoryRoutes from './category.routes';
 import colorRoutes from './color.routes';
 import customerRoutes from './customer.routes';
 import dashboardRoutes from './dashboard.routes';
+import exchangeRoutes from './exchange.routes';
 import favoriteRoutes from './favorite.routes';
 import healthRoutes from './health.routes';
 import inventoryRoutes from './inventory.routes';
@@ -38,6 +39,7 @@ v1.use('/favorites', favoriteRoutes);
 v1.use('/push', pushRoutes);
 v1.use('/addresses', addressRoutes);
 v1.use('/reviews', reviewsAdminRoutes);
+v1.use('/exchanges', exchangeRoutes);
 v1.use('/newsletter', newsletterRoutes);
 v1.use('/visits', visitRoutes);
 
