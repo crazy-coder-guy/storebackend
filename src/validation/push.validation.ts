@@ -1,5 +1,15 @@
 import { z } from 'zod';
 
+// A notification's `url` is opened via the service worker's own
+// clients.openWindow(), which resolves a path like "/cart" against its own
+// origin (the customer PWA) — so unlike `icon`/`image` (asset URLs, which
+// must be absolute), this should accept either an absolute URL or a path.
+const deepLinkSchema = z
+  .string()
+  .refine((value) => value.startsWith('/') || z.string().url().safeParse(value).success, {
+    message: 'Must be an absolute URL or a path starting with /',
+  });
+
 export const subscribeSchema = z.object({
   endpoint: z.string().url(),
   keys: z.object({
@@ -21,13 +31,13 @@ export const notificationActionSchema = z.object({
   icon: z.string().url().optional(),
   // Falls back to the notification's own top-level url if omitted, so each
   // button can deep-link somewhere different (e.g. "View Order" vs "Shop Now").
-  url: z.string().url().optional(),
+  url: deepLinkSchema.optional(),
 });
 
 export const sendNotificationSchema = z.object({
   title: z.string().min(1).max(100),
   body: z.string().min(1).max(500),
-  url: z.string().url().optional(),
+  url: deepLinkSchema.optional(),
   image: z.string().url().optional(),
   actions: z.array(notificationActionSchema).max(2).optional(),
   // Sends only to this user's subscriptions instead of broadcasting to everyone.
@@ -38,7 +48,7 @@ export const createTemplateSchema = z.object({
   name: z.string().min(1).max(80),
   title: z.string().min(1).max(100),
   body: z.string().min(1).max(500),
-  url: z.string().url().optional(),
+  url: deepLinkSchema.optional(),
   image: z.string().url().optional(),
   actions: z.array(notificationActionSchema).max(2).optional(),
 });

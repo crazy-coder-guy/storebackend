@@ -15,7 +15,8 @@ export type RealtimeEntity =
   | 'review'
   | 'exchange'
   | 'newsletter'
-  | 'storefront';
+  | 'storefront'
+  | 'cart';
 
 export type RealtimeAction = 'created' | 'updated' | 'deleted';
 

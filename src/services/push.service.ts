@@ -59,6 +59,14 @@ export async function sendNotification(input: SendNotificationInput) {
     where: input.userId ? { userId: input.userId } : undefined,
   });
 
+  if (input.userId && subscriptions.length === 0) {
+    throw new AppError(
+      422,
+      'NO_SUBSCRIPTION',
+      'This user has not enabled push notifications, so there is nothing to send to'
+    );
+  }
+
   const payload = JSON.stringify({
     title: input.title,
     body: input.body,
