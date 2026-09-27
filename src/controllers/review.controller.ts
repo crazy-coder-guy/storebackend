@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import * as reviewService from '../services/review.service';
 import { asyncHandler } from '../utils/asyncHandler';
+import { emitRealtime } from '../realtime/socket';
 import { sendSuccess } from '../utils/response';
 import { parsePagination } from '../utils/pagination';
 
@@ -19,11 +20,13 @@ export const createReview = asyncHandler(async (req: Request, res: Response) => 
     req.body,
     files ?? {}
   );
+  emitRealtime('review', 'created', req.params.productId);
   return sendSuccess(res, review, 'Review submitted', 201);
 });
 
 export const deleteOwnReview = asyncHandler(async (req: Request, res: Response) => {
   await reviewService.deleteOwnReview(req.authUser!.id, req.params.productId, req.params.reviewId);
+  emitRealtime('review', 'deleted', req.params.productId);
   return sendSuccess(res, null, 'Review deleted');
 });
 
@@ -40,5 +43,6 @@ export const listAllReviews = asyncHandler(async (req: Request, res: Response) =
 
 export const adminDeleteReview = asyncHandler(async (req: Request, res: Response) => {
   await reviewService.adminDeleteReview(req.params.id);
+  emitRealtime('review', 'deleted', req.params.id);
   return sendSuccess(res, null, 'Review deleted');
 });

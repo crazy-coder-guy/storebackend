@@ -2,10 +2,12 @@ import { Request, Response } from 'express';
 import * as newsletterService from '../services/newsletter.service';
 import { asyncHandler } from '../utils/asyncHandler';
 import { parsePagination } from '../utils/pagination';
+import { emitRealtime } from '../realtime/socket';
 import { sendSuccess } from '../utils/response';
 
 export const subscribe = asyncHandler(async (req: Request, res: Response) => {
   const { alreadySubscribed, subscriber } = await newsletterService.subscribe(req.body.email);
+  if (!alreadySubscribed) emitRealtime('newsletter', 'created', subscriber.id);
   return sendSuccess(
     res,
     { ...subscriber, alreadySubscribed },
@@ -22,6 +24,7 @@ export const listSubscribers = asyncHandler(async (req: Request, res: Response) 
 
 export const deleteSubscriber = asyncHandler(async (req: Request, res: Response) => {
   await newsletterService.deleteSubscriber(req.params.id);
+  emitRealtime('newsletter', 'deleted', req.params.id);
   return sendSuccess(res, null, 'Subscriber removed');
 });
 
@@ -32,6 +35,7 @@ export const syncSubscribers = asyncHandler(async (_req: Request, res: Response)
 
 export const createCampaign = asyncHandler(async (req: Request, res: Response) => {
   const campaign = await newsletterService.createCampaign(req.body);
+  emitRealtime('newsletter', 'created', String(campaign.id));
   return sendSuccess(res, campaign, req.body.sendNow ? 'Newsletter sent' : 'Newsletter scheduled', 201);
 });
 

@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import * as orderService from '../services/order.service';
 import { asyncHandler } from '../utils/asyncHandler';
 import { parsePagination } from '../utils/pagination';
+import { emitRealtime } from '../realtime/socket';
 import { sendSuccess } from '../utils/response';
 
 export const listOrders = asyncHandler(async (req: Request, res: Response) => {
@@ -30,10 +31,14 @@ export const getMyOrders = asyncHandler(async (req: Request, res: Response) => {
 
 export const createOrder = asyncHandler(async (req: Request, res: Response) => {
   const order = await orderService.createOrder(req.authUser!.id, req.authUser!.email, req.body);
+  emitRealtime('order', 'created', order.id);
+  emitRealtime('inventory', 'updated');
   return sendSuccess(res, order, 'Order created', 201);
 });
 
 export const updateOrderStatus = asyncHandler(async (req: Request, res: Response) => {
   const order = await orderService.updateOrderStatus(req.params.id, req.body.status);
+  emitRealtime('order', 'updated', order.id);
+  if (req.body.status === 'CANCELLED') emitRealtime('inventory', 'updated');
   return sendSuccess(res, order, 'Order status updated');
 });

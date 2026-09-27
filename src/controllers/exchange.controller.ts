@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import * as exchangeService from '../services/exchange.service';
 import { asyncHandler } from '../utils/asyncHandler';
 import { parsePagination } from '../utils/pagination';
+import { emitRealtime } from '../realtime/socket';
 import { sendSuccess } from '../utils/response';
 
 export const listEligibleItems = asyncHandler(async (req: Request, res: Response) => {
@@ -17,11 +18,13 @@ export const listMyExchangeRequests = asyncHandler(async (req: Request, res: Res
 export const createExchangeRequest = asyncHandler(async (req: Request, res: Response) => {
   const files = req.files as { images?: Express.Multer.File[] } | undefined;
   const request = await exchangeService.createExchangeRequest(req.authUser!.id, req.body, files ?? {});
+  emitRealtime('exchange', 'created', request.id);
   return sendSuccess(res, request, 'Exchange request submitted', 201);
 });
 
 export const cancelOwnExchangeRequest = asyncHandler(async (req: Request, res: Response) => {
   await exchangeService.cancelOwnExchangeRequest(req.authUser!.id, req.params.id);
+  emitRealtime('exchange', 'updated', req.params.id);
   return sendSuccess(res, null, 'Exchange request cancelled');
 });
 
@@ -37,5 +40,6 @@ export const listAllExchangeRequests = asyncHandler(async (req: Request, res: Re
 
 export const updateExchangeStatus = asyncHandler(async (req: Request, res: Response) => {
   const request = await exchangeService.updateExchangeStatus(req.params.id, req.body.status, req.body.adminNote);
+  emitRealtime('exchange', 'updated', req.params.id);
   return sendSuccess(res, request, 'Exchange request updated');
 });

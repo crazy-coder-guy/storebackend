@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import * as categoryService from '../services/category.service';
 import { asyncHandler } from '../utils/asyncHandler';
 import { parsePagination } from '../utils/pagination';
+import { emitRealtime } from '../realtime/socket';
 import { sendSuccess } from '../utils/response';
 
 export const listCategories = asyncHandler(async (req: Request, res: Response) => {
@@ -20,20 +21,24 @@ export const getCategory = asyncHandler(async (req: Request, res: Response) => {
 
 export const createCategory = asyncHandler(async (req: Request, res: Response) => {
   const category = await categoryService.createCategory(req.body);
+  emitRealtime('category', 'created', category.id);
   return sendSuccess(res, category, 'Category created', 201);
 });
 
 export const updateCategory = asyncHandler(async (req: Request, res: Response) => {
   const category = await categoryService.updateCategory(req.params.id, req.body);
+  emitRealtime('category', 'updated', category.id);
   return sendSuccess(res, category, 'Category updated');
 });
 
 export const deleteCategory = asyncHandler(async (req: Request, res: Response) => {
   const category = await categoryService.softDeleteCategory(req.params.id);
+  emitRealtime('category', 'updated', category.id);
   return sendSuccess(res, category, 'Category deactivated');
 });
 
 export const deleteCategoryPermanently = asyncHandler(async (req: Request, res: Response) => {
   await categoryService.deleteCategoryPermanently(req.params.id);
+  emitRealtime('category', 'deleted', req.params.id);
   return sendSuccess(res, null, 'Category permanently deleted');
 });

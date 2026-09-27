@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import * as inventoryService from '../services/inventory.service';
 import { asyncHandler } from '../utils/asyncHandler';
 import { parsePagination } from '../utils/pagination';
+import { emitRealtime } from '../realtime/socket';
 import { sendSuccess } from '../utils/response';
 
 export const listInventory = asyncHandler(async (req: Request, res: Response) => {
@@ -47,6 +48,7 @@ export const getOutOfStock = asyncHandler(async (_req: Request, res: Response) =
 
 export const adjustStock = asyncHandler(async (req: Request, res: Response) => {
   const result = await inventoryService.adjustStock(req.params.variantId, req.body);
+  emitRealtime('inventory', 'updated', req.params.variantId);
   return sendSuccess(res, result, 'Stock adjusted');
 });
 

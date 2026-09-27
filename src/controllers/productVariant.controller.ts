@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import * as variantService from '../services/productVariant.service';
 import { asyncHandler } from '../utils/asyncHandler';
+import { emitRealtime } from '../realtime/socket';
 import { sendSuccess } from '../utils/response';
 
 export const listProductVariants = asyncHandler(async (req: Request, res: Response) => {
@@ -15,6 +16,8 @@ export const getProductVariant = asyncHandler(async (req: Request, res: Response
 
 export const createProductVariant = asyncHandler(async (req: Request, res: Response) => {
   const variant = await variantService.createProductVariant(req.params.productId, req.body);
+  emitRealtime('product', 'updated', req.params.productId);
+  emitRealtime('inventory', 'created', variant.id);
   return sendSuccess(res, variant, 'Product variant created', 201);
 });
 
@@ -24,6 +27,8 @@ export const updateProductVariant = asyncHandler(async (req: Request, res: Respo
     req.params.variantId,
     req.body
   );
+  emitRealtime('product', 'updated', req.params.productId);
+  emitRealtime('inventory', 'updated', variant.id);
   return sendSuccess(res, variant, 'Product variant updated');
 });
 
@@ -32,5 +37,7 @@ export const deleteProductVariant = asyncHandler(async (req: Request, res: Respo
     req.params.productId,
     req.params.variantId
   );
+  emitRealtime('product', 'updated', req.params.productId);
+  emitRealtime('inventory', 'updated', variant.id);
   return sendSuccess(res, variant, 'Product variant deactivated');
 });
