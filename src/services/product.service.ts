@@ -156,9 +156,14 @@ export async function getProductById(id: string) {
   return product;
 }
 
+// Public, customer-storefront-only lookup (unlike getProductById, which the
+// admin dashboard also uses to view/edit DRAFT and INACTIVE products) — so
+// this one only ever returns a product a shopper is actually allowed to see.
+// A DRAFT or deactivated product must not be publicly viewable or indexable
+// at its slug URL just because the id-based admin endpoint can still see it.
 export async function getProductBySlug(slug: string) {
   const product = await prisma.product.findUnique({
-    where: { slug },
+    where: { slug, status: 'ACTIVE' },
     include: {
       category: true,
       images: { orderBy: { sortOrder: 'asc' }, include: { color: true } },
