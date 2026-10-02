@@ -12,3 +12,8 @@ export const verifyPayment = asyncHandler(async (req: Request, res: Response) =>
   const order = await paymentService.verifyPayment(req.params.id, req.body);
   return sendSuccess(res, order, 'Payment verified');
 });
+
+export const reconcilePayment = asyncHandler(async (req: Request, res: Response) => {
+  const order = await paymentService.reconcilePayment(req.authUser!.id, req.params.id);
+  return sendSuccess(res, order, 'Payment status checked');
+});

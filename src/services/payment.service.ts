@@ -75,11 +75,46 @@ export async function verifyPayment(orderId: string, input: VerifyPaymentInput) 
   });
 
   const verified = await getOrderById(orderId);
+  notifyPlacedSafely(verified);
+  return verified;
+}
+
+function notifyPlacedSafely(order: Awaited<ReturnType<typeof getOrderById>>) {
   // Fire-and-forget — `void` alone doesn't catch a rejection, so a push
   // failure (e.g. no subscription) here must never crash the request that
   // just confirmed a real payment.
-  orderNotificationService.notifyOrderPlaced(verified).catch((err) => {
-    console.error(`[payment] notifyOrderPlaced failed for ${verified.orderNumber}:`, err);
+  orderNotificationService.notifyOrderPlaced(order).catch((err) => {
+    console.error(`[payment] notifyOrderPlaced failed for ${order.orderNumber}:`, err);
   });
-  return verified;
+}
+
+// Covers the case where Razorpay actually captured the money but the
+// browser never got to run the success `handler` — the tab was reloaded or
+// closed mid-confirmation, a network blip dropped the callback, etc. The
+// client-side flow alone can't recover from that, so this asks Razorpay's
+// API directly (authenticated with our secret key, not a client-supplied
+// signature) whether a captured payment exists for this order's Razorpay
+// order id, and finalizes it the same way a normal verify would.
+export async function reconcilePayment(userId: string, orderId: string) {
+  const order = await prisma.order.findUnique({ where: { id: orderId } });
+  if (!order || order.userId !== userId) throw new AppError(404, 'NOT_FOUND', 'Order not found');
+  if (order.paymentStatus === 'PAID') return getOrderById(orderId);
+  if (!order.razorpayOrderId) return getOrderById(orderId);
+
+  const { items: payments } = await razorpay.orders.fetchPayments(order.razorpayOrderId);
+  const captured = payments.find((p) => p.status === 'captured');
+  if (!captured) return getOrderById(orderId);
+
+  await prisma.order.update({
+    where: { id: orderId },
+    data: {
+      paymentStatus: 'PAID',
+      status: order.status === 'PENDING' ? 'PROCESSING' : order.status,
+      razorpayPaymentId: captured.id,
+    },
+  });
+
+  const reconciled = await getOrderById(orderId);
+  notifyPlacedSafely(reconciled);
+  return reconciled;
 }

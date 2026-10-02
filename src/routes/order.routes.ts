@@ -7,7 +7,7 @@ import {
   listOrders,
   updateOrderStatus,
 } from '../controllers/order.controller';
-import { createRazorpayOrder, verifyPayment } from '../controllers/payment.controller';
+import { createRazorpayOrder, reconcilePayment, verifyPayment } from '../controllers/payment.controller';
 import { requireAuth } from '../middleware/auth';
 import { validate } from '../middleware/validate';
 import { createOrderSchema, updateOrderStatusSchema } from '../validation/order.validation';
@@ -23,5 +23,6 @@ router.post('/:id/cancel', requireAuth, cancelMyOrder);
 router.patch('/:id/status', validate(updateOrderStatusSchema), updateOrderStatus);
 router.post('/:id/razorpay-order', createRazorpayOrder);
 router.post('/:id/razorpay-verify', validate(verifyPaymentSchema), verifyPayment);
+router.post('/:id/razorpay-sync', requireAuth, reconcilePayment);
 
 export default router;
