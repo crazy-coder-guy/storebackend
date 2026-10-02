@@ -75,6 +75,7 @@ function serializeOrder(order: OrderWithRelations) {
     state: order.state,
     pincode: order.pincode,
     createdAt: order.createdAt,
+    deliveredAt: order.deliveredAt,
   };
 }
 
@@ -126,6 +127,38 @@ export async function listMyOrders(userId: string) {
     orderBy: { createdAt: 'desc' },
   });
   return orders.map(serializeOrder);
+}
+
+function normalizePhoneDigits(value: string) {
+  return value.replace(/\D/g, '');
+}
+
+// Lets a guest (no sign-in) look up their own order with just its number
+// plus the phone or email it was placed under — the two together prove
+// ownership well enough for a read-only status check, the same trust level
+// as a courier's own "track your shipment" page. Deliberately returns the
+// exact same generic error whether the order number doesn't exist or the
+// contact just doesn't match it, so this can't be used to enumerate real
+// order numbers or confirm someone's phone/email is tied to one.
+export async function trackOrder(orderNumber: string, contact: string) {
+  const notFoundError = new AppError(
+    404,
+    'ORDER_NOT_FOUND',
+    "We couldn't find an order matching that number and contact detail"
+  );
+
+  const order = await prisma.order.findUnique({ where: { orderNumber: orderNumber.trim() } });
+  if (!order) throw notFoundError;
+
+  const trimmedContact = contact.trim().toLowerCase();
+  const contactDigits = normalizePhoneDigits(contact);
+  const emailMatches = trimmedContact.length > 0 && order.customerEmail.toLowerCase() === trimmedContact;
+  const phoneMatches =
+    contactDigits.length >= 10 && normalizePhoneDigits(order.customerPhone).endsWith(contactDigits.slice(-10));
+
+  if (!emailMatches && !phoneMatches) throw notFoundError;
+
+  return getOrderById(order.id);
 }
 
 export async function createOrder(userId: string, authedEmail: string, input: CreateOrderInput) {

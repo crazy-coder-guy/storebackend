@@ -5,6 +5,7 @@ import {
   getMyOrders,
   getOrder,
   listOrders,
+  trackOrder,
   updateOrderStatus,
 } from '../controllers/order.controller';
 import { createRazorpayOrder, reconcilePayment, verifyPayment } from '../controllers/payment.controller';
@@ -17,6 +18,7 @@ const router = Router();
 
 router.get('/', listOrders);
 router.get('/mine', requireAuth, getMyOrders);
+router.get('/track', trackOrder);
 router.get('/:id', getOrder);
 router.post('/', requireAuth, validate(createOrderSchema), createOrder);
 router.post('/:id/cancel', requireAuth, cancelMyOrder);

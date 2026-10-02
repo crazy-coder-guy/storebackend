@@ -4,6 +4,7 @@ import { asyncHandler } from '../utils/asyncHandler';
 import { parsePagination } from '../utils/pagination';
 import { emitRealtime } from '../realtime/socket';
 import { sendSuccess } from '../utils/response';
+import { AppError } from '../utils/AppError';
 
 export const listOrders = asyncHandler(async (req: Request, res: Response) => {
   const { skip, take, page, limit } = parsePagination(req);
@@ -27,6 +28,16 @@ export const getOrder = asyncHandler(async (req: Request, res: Response) => {
 export const getMyOrders = asyncHandler(async (req: Request, res: Response) => {
   const orders = await orderService.listMyOrders(req.authUser!.id);
   return sendSuccess(res, orders, 'Your orders fetched');
+});
+
+export const trackOrder = asyncHandler(async (req: Request, res: Response) => {
+  const orderNumber = String(req.query.orderNumber ?? '').trim();
+  const contact = String(req.query.contact ?? '').trim();
+  if (!orderNumber || !contact) {
+    throw new AppError(422, 'VALIDATION_ERROR', 'Both order number and contact detail are required');
+  }
+  const order = await orderService.trackOrder(orderNumber, contact);
+  return sendSuccess(res, order, 'Order found');
 });
 
 export const createOrder = asyncHandler(async (req: Request, res: Response) => {
