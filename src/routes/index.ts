@@ -20,10 +20,12 @@ import searchRoutes from './search.routes';
 import sizeRoutes from './size.routes';
 import storefrontRoutes from './storefront.routes';
 import visitRoutes from './visit.routes';
+import webhookRoutes from './webhook.routes';
 
 const router = Router();
 
 router.use('/health', healthRoutes);
+router.use('/webhooks', webhookRoutes);
 
 const v1 = Router();
 v1.use('/categories', categoryRoutes);

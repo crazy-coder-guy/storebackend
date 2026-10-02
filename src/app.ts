@@ -9,8 +9,28 @@ const app: Application = express();
 
 app.set('trust proxy', true);
 
+declare global {
+  // eslint-disable-next-line @typescript-eslint/no-namespace
+  namespace Express {
+    interface Request {
+      // The exact bytes of the request body, captured below — Razorpay's
+      // webhook signature is computed over the raw payload, and re-serializing
+      // the already-parsed `req.body` back to JSON is not guaranteed to
+      // produce byte-identical output (key order, whitespace), which would
+      // make a valid webhook fail signature verification.
+      rawBody?: Buffer;
+    }
+  }
+}
+
 app.use(cors());
-app.use(express.json());
+app.use(
+  express.json({
+    verify: (req, _res, buf) => {
+      (req as express.Request).rawBody = buf;
+    },
+  })
+);
 app.use(express.urlencoded({ extended: true }));
 
 app.use((req, res, next) => {

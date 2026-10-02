@@ -17,3 +17,12 @@ export const reconcilePayment = asyncHandler(async (req: Request, res: Response)
   const order = await paymentService.reconcilePayment(req.authUser!.id, req.params.id);
   return sendSuccess(res, order, 'Payment status checked');
 });
+
+export const razorpayWebhook = asyncHandler(async (req: Request, res: Response) => {
+  const signature = req.headers['x-razorpay-signature'];
+  const result = await paymentService.handleRazorpayWebhook(
+    req.rawBody ?? Buffer.from(JSON.stringify(req.body)),
+    typeof signature === 'string' ? signature : undefined
+  );
+  return sendSuccess(res, result, 'Webhook processed');
+});

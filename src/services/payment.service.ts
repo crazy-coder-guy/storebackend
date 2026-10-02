@@ -1,5 +1,6 @@
 import crypto from 'crypto';
 import Razorpay from 'razorpay';
+import { OrderStatus } from '@prisma/client';
 import { prisma } from '../database/prisma';
 import { config } from '../config';
 import { AppError } from '../utils/AppError';
@@ -64,19 +65,27 @@ export async function verifyPayment(orderId: string, input: VerifyPaymentInput) 
     throw new AppError(400, 'INVALID_SIGNATURE', 'Payment signature verification failed');
   }
 
+  return markOrderPaid(order, input.razorpayPaymentId, input.razorpaySignature);
+}
+
+async function markOrderPaid(
+  order: { id: string; status: OrderStatus },
+  razorpayPaymentId: string,
+  razorpaySignature?: string
+) {
   await prisma.order.update({
-    where: { id: orderId },
+    where: { id: order.id },
     data: {
       paymentStatus: 'PAID',
       status: order.status === 'PENDING' ? 'PROCESSING' : order.status,
-      razorpayPaymentId: input.razorpayPaymentId,
-      razorpaySignature: input.razorpaySignature,
+      razorpayPaymentId,
+      ...(razorpaySignature ? { razorpaySignature } : {}),
     },
   });
 
-  const verified = await getOrderById(orderId);
-  notifyPlacedSafely(verified);
-  return verified;
+  const confirmed = await getOrderById(order.id);
+  notifyPlacedSafely(confirmed);
+  return confirmed;
 }
 
 function notifyPlacedSafely(order: Awaited<ReturnType<typeof getOrderById>>) {
@@ -105,16 +114,59 @@ export async function reconcilePayment(userId: string, orderId: string) {
   const captured = payments.find((p) => p.status === 'captured');
   if (!captured) return getOrderById(orderId);
 
-  await prisma.order.update({
-    where: { id: orderId },
-    data: {
-      paymentStatus: 'PAID',
-      status: order.status === 'PENDING' ? 'PROCESSING' : order.status,
-      razorpayPaymentId: captured.id,
-    },
-  });
+  return markOrderPaid(order, captured.id);
+}
 
-  const reconciled = await getOrderById(orderId);
-  notifyPlacedSafely(reconciled);
-  return reconciled;
+// Razorpay's server-to-server notification of a successful payment — the
+// authoritative way to learn a payment captured, independent of whether the
+// customer's browser ever runs JS again (closed tab, no network, reload
+// mid-confirmation). Must verify the signature over the exact raw body
+// Razorpay sent, since re-serializing the parsed JSON isn't guaranteed to
+// produce identical bytes.
+export async function handleRazorpayWebhook(rawBody: Buffer, signature: string | undefined) {
+  if (!config.razorpay.webhookSecret) {
+    throw new AppError(500, 'WEBHOOK_NOT_CONFIGURED', 'RAZORPAY_WEBHOOK_SECRET is not configured');
+  }
+  if (!signature) {
+    throw new AppError(400, 'MISSING_SIGNATURE', 'Missing X-Razorpay-Signature header');
+  }
+
+  const expectedSignature = crypto.createHmac('sha256', config.razorpay.webhookSecret).update(rawBody).digest('hex');
+  const isValid =
+    expectedSignature.length === signature.length &&
+    crypto.timingSafeEqual(Buffer.from(expectedSignature), Buffer.from(signature));
+  if (!isValid) {
+    throw new AppError(400, 'INVALID_SIGNATURE', 'Webhook signature verification failed');
+  }
+
+  const payload = JSON.parse(rawBody.toString('utf8'));
+  if (payload.event !== 'payment.captured') {
+    // Other events (payment.failed, order.paid, refund.*, …) aren't acted on
+    // — ack so Razorpay doesn't keep retrying an event we deliberately ignore.
+    return { ignored: true, event: payload.event };
+  }
+
+  const payment = payload.payload?.payment?.entity;
+  const razorpayOrderId: string | undefined = payment?.order_id;
+  const razorpayPaymentId: string | undefined = payment?.id;
+  if (!razorpayOrderId || !razorpayPaymentId) {
+    return { ignored: true, reason: 'malformed payload' };
+  }
+
+  const order = await prisma.order.findUnique({ where: { razorpayOrderId } });
+  if (!order) {
+    // Could be a payment for an order this backend doesn't know about (a
+    // different environment's test webhook, for instance) — ack rather than
+    // 500, since retrying won't make the order appear.
+    console.warn(`[webhook] No order found for razorpayOrderId ${razorpayOrderId}`);
+    return { ignored: true, reason: 'order not found' };
+  }
+  if (order.paymentStatus === 'PAID') {
+    // Razorpay retries webhooks; already handled (e.g. the client-side
+    // verify or a reconcile call got there first) — idempotent no-op.
+    return { alreadyProcessed: true, orderId: order.id };
+  }
+
+  const confirmed = await markOrderPaid(order, razorpayPaymentId);
+  return { orderId: confirmed.id, orderNumber: confirmed.orderNumber };
 }

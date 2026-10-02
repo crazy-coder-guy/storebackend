@@ -264,7 +264,7 @@ model Order {
   paymentStatus     PaymentStatus @default(UNPAID) @map("payment_status")
   totalAmount       Decimal       @map("total_amount")
   shippingAddress   String        @map("shipping_address")
-  razorpayOrderId   String?       @map("razorpay_order_id")
+  razorpayOrderId   String?       @unique @map("razorpay_order_id")
   razorpayPaymentId String?       @map("razorpay_payment_id")
   razorpaySignature String?       @map("razorpay_signature")
   deliveredAt       DateTime?     @map("delivered_at")
