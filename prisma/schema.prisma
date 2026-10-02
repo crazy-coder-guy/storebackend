@@ -68,6 +68,11 @@ enum PaymentStatus {
   REFUNDED
 }
 
+enum CouponType {
+  PERCENTAGE
+  FIXED
+}
+
 model Category {
   id          String       @id @default(uuid())
   name        String
@@ -266,13 +271,19 @@ model Order {
   createdAt         DateTime      @default(now()) @map("created_at")
   updatedAt         DateTime      @updatedAt @map("updated_at")
 
+  couponId       String?  @map("coupon_id")
+  discountAmount Decimal  @default(0) @map("discount_amount")
+
   user  User        @relation(fields: [userId], references: [id], onDelete: Restrict)
   items OrderItem[]
   reviews Review[]
   exchangeRequests ExchangeRequest[]
+  coupon           Coupon?           @relation(fields: [couponId], references: [id], onDelete: SetNull)
+  couponRedemption CouponRedemption?
 
   @@index([userId])
   @@index([status])
+  @@index([couponId])
   @@map("orders")
 }
 
@@ -357,6 +368,7 @@ model User {
   visits            Visit[]
   orders            Order[]
   exchangeRequests  ExchangeRequest[]
+  couponRedemptions CouponRedemption[]
 
   @@map("users")
 }
@@ -424,11 +436,13 @@ model NotificationTemplate {
 model Cart {
   id        String   @id @default(uuid())
   userId    String   @unique @map("user_id")
+  couponId  String?  @map("coupon_id")
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
-  user  User       @relation(fields: [userId], references: [id], onDelete: Cascade)
-  items CartItem[]
+  user   User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  items  CartItem[]
+  coupon Coupon?    @relation(fields: [couponId], references: [id], onDelete: SetNull)
 
   @@map("carts")
 }
@@ -446,6 +460,52 @@ model CartItem {
 
   @@unique([cartId, variantId])
   @@map("cart_items")
+}
+
+// A discount code the admin creates and a customer enters on the cart/
+// checkout — `value` is either a percentage (0-100) or a flat rupee amount
+// depending on `type`. `usedCount` tracks total redemptions against
+// `usageLimit`; `perUserLimit` (via CouponRedemption, one row per order) caps
+// how many times a single customer can redeem it, typically 1.
+model Coupon {
+  id                String       @id @default(uuid())
+  code              String       @unique
+  type              CouponType
+  value             Decimal
+  minOrderValue     Decimal?     @map("min_order_value")
+  maxDiscountAmount Decimal?     @map("max_discount_amount")
+  usageLimit        Int?         @map("usage_limit")
+  usedCount         Int          @default(0) @map("used_count")
+  perUserLimit      Int          @default(1) @map("per_user_limit")
+  expiresAt         DateTime?    @map("expires_at")
+  status            EntityStatus @default(ACTIVE)
+  createdAt         DateTime     @default(now()) @map("created_at")
+  updatedAt         DateTime     @updatedAt @map("updated_at")
+
+  carts       Cart[]
+  orders      Order[]
+  redemptions CouponRedemption[]
+
+  @@map("coupons")
+}
+
+// One row per order that actually redeemed a coupon — the source of truth
+// for "has this user already used this coupon" and for usage stats, rather
+// than trying to infer it from Order.couponId (which an admin could null out).
+model CouponRedemption {
+  id        String   @id @default(uuid())
+  couponId  String   @map("coupon_id")
+  userId    String   @map("user_id")
+  orderId   String   @unique @map("order_id")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  coupon Coupon @relation(fields: [couponId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  order  Order  @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([couponId])
+  @@index([userId])
+  @@map("coupon_redemptions")
 }
 
 model Favorite {

@@ -11,6 +11,7 @@ export const createOrderSchema = z.object({
   shippingAddress: z.string().min(1),
   paymentStatus: z.enum(['PAID', 'UNPAID', 'REFUNDED']).optional(),
   items: z.array(orderItemInputSchema).min(1, 'At least one item is required'),
+  couponCode: z.string().min(1).max(30).optional(),
 });
 
 export const updateOrderStatusSchema = z.object({

@@ -4,6 +4,7 @@ import { AppError } from '../utils/AppError';
 import { buildMeta } from '../utils/pagination';
 import { AddCartItemInput, UpdateCartItemInput } from '../validation/cart.validation';
 import { FREE_DELIVERY_THRESHOLD, calculateDeliveryFee } from '../utils/pricing';
+import * as couponService from './coupon.service';
 
 const cartItemInclude = {
   variant: {
@@ -61,29 +62,65 @@ async function getCartItems(cartId: string) {
   return items.map(serializeCartItem);
 }
 
-function buildCartSummary(items: ReturnType<typeof serializeCartItem>[]) {
+function buildCartSummary(
+  items: ReturnType<typeof serializeCartItem>[],
+  coupon?: { code: string; discountAmount: number } | null
+) {
   const subtotal = items.reduce((sum, item) => sum + item.price * item.quantity, 0);
   const mrpTotal = items.reduce((sum, item) => sum + item.mrp * item.quantity, 0);
   const discount = Math.max(0, mrpTotal - subtotal);
   const deliveryFee = calculateDeliveryFee(subtotal);
+  const couponDiscount = coupon?.discountAmount ?? 0;
   return {
     subtotal,
     mrpTotal,
     discount,
     deliveryFee,
-    total: subtotal + deliveryFee,
+    couponCode: coupon?.code ?? null,
+    couponDiscount,
+    total: Math.max(0, subtotal + deliveryFee - couponDiscount),
     freeDeliveryThreshold: FREE_DELIVERY_THRESHOLD,
   };
 }
 
-async function getCartWithSummary(cartId: string) {
-  const items = await getCartItems(cartId);
-  return { items, summary: buildCartSummary(items) };
+async function getCartWithSummary(cart: { id: string; userId: string; couponId: string | null }) {
+  const items = await getCartItems(cart.id);
+  const subtotal = items.reduce((sum, item) => sum + item.price * item.quantity, 0);
+
+  let appliedCoupon: { code: string; discountAmount: number } | null = null;
+  if (cart.couponId) {
+    const result = await couponService.revalidateCartCoupon(cart.userId, cart.couponId, subtotal);
+    if (result) {
+      appliedCoupon = { code: result.coupon.code, discountAmount: result.discountAmount };
+    } else {
+      // The coupon on this cart is no longer valid (expired, deactivated,
+      // usage limit hit since it was applied) — drop it rather than keep
+      // showing a discount that won't actually be honored at checkout.
+      await prisma.cart.update({ where: { id: cart.id }, data: { couponId: null } });
+    }
+  }
+
+  return { items, summary: buildCartSummary(items, appliedCoupon) };
 }
 
 export async function getCart(userId: string) {
   const cart = await getOrCreateCart(userId);
-  return getCartWithSummary(cart.id);
+  return getCartWithSummary(cart);
+}
+
+export async function applyCoupon(userId: string, code: string) {
+  const cart = await getOrCreateCart(userId);
+  const items = await getCartItems(cart.id);
+  const subtotal = items.reduce((sum, item) => sum + item.price * item.quantity, 0);
+  if (subtotal <= 0) throw new AppError(422, 'EMPTY_CART', 'Add items to your cart before applying a coupon');
+  const coupon = await couponService.applyCouponToCart(userId, code, subtotal);
+  return getCartWithSummary({ ...cart, couponId: coupon.id });
+}
+
+export async function removeCoupon(userId: string) {
+  const cart = await getOrCreateCart(userId);
+  await couponService.removeCouponFromCart(userId);
+  return getCartWithSummary({ ...cart, couponId: null });
 }
 
 // A stale UI (or a race with someone else buying the last unit) can still
@@ -134,7 +171,7 @@ export async function addCartItem(userId: string, input: AddCartItemInput) {
     create: { cartId: cart.id, variantId: input.variantId, quantity: input.quantity },
   });
 
-  return getCartWithSummary(cart.id);
+  return getCartWithSummary(cart);
 }
 
 async function getOwnedCartItem(cartId: string, itemId: string) {
@@ -161,19 +198,20 @@ export async function updateCartItem(userId: string, itemId: string, input: Upda
     await prisma.cartItem.update({ where: { id: item.id }, data: { quantity: input.quantity } });
   }
 
-  return getCartWithSummary(cart.id);
+  return getCartWithSummary(cart);
 }
 
 export async function removeCartItem(userId: string, itemId: string) {
   const cart = await getOrCreateCart(userId);
   const item = await getOwnedCartItem(cart.id, itemId);
   await prisma.cartItem.delete({ where: { id: item.id } });
-  return getCartWithSummary(cart.id);
+  return getCartWithSummary(cart);
 }
 
 export async function clearCart(userId: string) {
   const cart = await getOrCreateCart(userId);
   await prisma.cartItem.deleteMany({ where: { cartId: cart.id } });
+  await prisma.cart.update({ where: { id: cart.id }, data: { couponId: null } });
   return { items: [], summary: buildCartSummary([]) };
 }
 

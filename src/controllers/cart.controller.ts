@@ -32,3 +32,15 @@ export const clearCart = asyncHandler(async (req: Request, res: Response) => {
   emitRealtime('cart', 'updated', req.authUser!.id);
   return sendSuccess(res, items, 'Cart cleared');
 });
+
+export const applyCoupon = asyncHandler(async (req: Request, res: Response) => {
+  const cart = await cartService.applyCoupon(req.authUser!.id, req.body.code);
+  emitRealtime('cart', 'updated', req.authUser!.id);
+  return sendSuccess(res, cart, 'Coupon applied');
+});
+
+export const removeCoupon = asyncHandler(async (req: Request, res: Response) => {
+  const cart = await cartService.removeCoupon(req.authUser!.id);
+  emitRealtime('cart', 'updated', req.authUser!.id);
+  return sendSuccess(res, cart, 'Coupon removed');
+});

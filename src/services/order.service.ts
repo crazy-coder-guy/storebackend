@@ -7,6 +7,7 @@ import { CreateOrderInput } from '../validation/order.validation';
 import * as orderNotificationService from './orderNotification.service';
 import { calculateDeliveryFee } from '../utils/pricing';
 import * as addressService from './address.service';
+import * as couponService from './coupon.service';
 
 interface ListOrdersParams {
   page: number;
@@ -34,6 +35,7 @@ const orderInclude = {
       },
     },
   },
+  coupon: { select: { code: true } },
 } satisfies Prisma.OrderInclude;
 
 type OrderWithRelations = Prisma.OrderGetPayload<{ include: typeof orderInclude }>;
@@ -50,6 +52,8 @@ function serializeOrder(order: OrderWithRelations) {
     status: order.status,
     paymentStatus: order.paymentStatus,
     totalAmount: order.totalAmount,
+    discountAmount: order.discountAmount,
+    couponCode: order.coupon?.code ?? null,
     itemsCount,
     items: order.items.map((item) => ({
       id: item.id,
@@ -157,7 +161,21 @@ export async function createOrder(userId: string, authedEmail: string, input: Cr
       itemsData.push({ variantId: variant.id, quantity: line.quantity, unitPrice });
     }
 
-    totalAmount = totalAmount.add(calculateDeliveryFee(Number(totalAmount)));
+    const subtotal = totalAmount;
+    let discountAmount = new Prisma.Decimal(0);
+    let appliedCouponId: string | null = null;
+    if (input.couponCode) {
+      const { coupon, discountAmount: amount } = await couponService.validateCouponForUser(
+        tx,
+        input.couponCode,
+        userId,
+        Number(subtotal)
+      );
+      discountAmount = new Prisma.Decimal(amount);
+      appliedCouponId = coupon.id;
+    }
+
+    totalAmount = totalAmount.sub(discountAmount).add(calculateDeliveryFee(Number(subtotal)));
 
     const orderNumber = `#ORD-${1000 + (await tx.order.count()) + 1}`;
 
@@ -170,10 +188,16 @@ export async function createOrder(userId: string, authedEmail: string, input: Cr
         customerEmail: authedEmail,
         paymentStatus: input.paymentStatus ?? 'UNPAID',
         totalAmount,
+        discountAmount,
+        couponId: appliedCouponId,
         shippingAddress: input.shippingAddress,
         items: { create: itemsData },
       },
     });
+
+    if (appliedCouponId) {
+      await couponService.redeemCoupon(tx, appliedCouponId, userId, order.id);
+    }
 
     for (const line of input.items) {
       const variant = variants.find((v) => v.id === line.variantId)!;
