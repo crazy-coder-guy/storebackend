@@ -4,6 +4,16 @@ import { SaveAddressInput } from '../validation/address.validation';
 
 export const MAX_ADDRESSES_PER_USER = 3;
 
+export function formatShippingAddress(parts: {
+  doorNumber: string;
+  streetName: string;
+  city: string;
+  state: string;
+  pincode: string;
+}) {
+  return `${parts.doorNumber}, ${parts.streetName}, ${parts.city}, ${parts.state} - ${parts.pincode}`;
+}
+
 export async function listAddresses(userId: string) {
   return prisma.address.findMany({ where: { userId }, orderBy: { createdAt: 'desc' } });
 }
@@ -14,7 +24,11 @@ export async function saveAddress(userId: string, input: SaveAddressInput) {
       userId,
       name: input.name,
       phone: input.phone,
-      shippingAddress: input.shippingAddress,
+      doorNumber: input.doorNumber,
+      streetName: input.streetName,
+      city: input.city,
+      state: input.state,
+      pincode: input.pincode,
     },
   });
   if (existing) return existing;
@@ -28,7 +42,9 @@ export async function saveAddress(userId: string, input: SaveAddressInput) {
     if (oldest) await prisma.address.delete({ where: { id: oldest.id } });
   }
 
-  return prisma.address.create({ data: { userId, ...input } });
+  return prisma.address.create({
+    data: { userId, ...input, shippingAddress: formatShippingAddress(input) },
+  });
 }
 
 export async function deleteAddress(userId: string, id: string) {

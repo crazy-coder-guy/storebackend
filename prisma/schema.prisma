@@ -264,6 +264,11 @@ model Order {
   paymentStatus     PaymentStatus @default(UNPAID) @map("payment_status")
   totalAmount       Decimal       @map("total_amount")
   shippingAddress   String        @map("shipping_address")
+  doorNumber        String?       @map("door_number")
+  streetName        String?       @map("street_name")
+  city              String?
+  state             String?
+  pincode           String?
   razorpayOrderId   String?       @unique @map("razorpay_order_id")
   razorpayPaymentId String?       @map("razorpay_payment_id")
   razorpaySignature String?       @map("razorpay_signature")
@@ -382,6 +387,11 @@ model Address {
   name            String
   phone           String
   shippingAddress String   @map("shipping_address")
+  doorNumber      String?  @map("door_number")
+  streetName      String?  @map("street_name")
+  city            String?
+  state           String?
+  pincode         String?
   createdAt       DateTime @default(now()) @map("created_at")
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)

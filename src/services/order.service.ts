@@ -69,6 +69,11 @@ function serializeOrder(order: OrderWithRelations) {
       unitPrice: item.unitPrice,
     })),
     shippingAddress: order.shippingAddress,
+    doorNumber: order.doorNumber,
+    streetName: order.streetName,
+    city: order.city,
+    state: order.state,
+    pincode: order.pincode,
     createdAt: order.createdAt,
   };
 }
@@ -190,7 +195,12 @@ export async function createOrder(userId: string, authedEmail: string, input: Cr
         totalAmount,
         discountAmount,
         couponId: appliedCouponId,
-        shippingAddress: input.shippingAddress,
+        shippingAddress: addressService.formatShippingAddress(input),
+        doorNumber: input.doorNumber,
+        streetName: input.streetName,
+        city: input.city,
+        state: input.state,
+        pincode: input.pincode,
         items: { create: itemsData },
       },
     });
@@ -221,7 +231,11 @@ export async function createOrder(userId: string, authedEmail: string, input: Cr
   await addressService.saveAddress(userId, {
     name: input.customerName,
     phone: input.customerPhone,
-    shippingAddress: input.shippingAddress,
+    doorNumber: input.doorNumber,
+    streetName: input.streetName,
+    city: input.city,
+    state: input.state,
+    pincode: input.pincode,
   });
 
   return getOrderById(orderId);

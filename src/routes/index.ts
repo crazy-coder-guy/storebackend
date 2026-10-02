@@ -13,6 +13,7 @@ import healthRoutes from './health.routes';
 import inventoryRoutes from './inventory.routes';
 import newsletterRoutes from './newsletter.routes';
 import orderRoutes from './order.routes';
+import pincodeRoutes from './pincode.routes';
 import productRoutes from './product.routes';
 import pushRoutes from './push.routes';
 import reviewsAdminRoutes from './reviewsAdmin.routes';
@@ -48,6 +49,7 @@ v1.use('/reviews', reviewsAdminRoutes);
 v1.use('/exchanges', exchangeRoutes);
 v1.use('/newsletter', newsletterRoutes);
 v1.use('/visits', visitRoutes);
+v1.use('/pincode', pincodeRoutes);
 
 router.use('/v1', v1);
 
