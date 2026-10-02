@@ -8,7 +8,7 @@ import {
 const SETTINGS_ID = 'default';
 
 const DEFAULT_SETTINGS = {
-  announcementText: 'Free Express Shipping Over ₹1,999 • 3-Day Easy Exchange',
+  announcementText: 'Free Express Shipping Over ₹399 • 3-Day Easy Exchange',
   heroTitle: 'Premium Oversized & Streetwear T-Shirts in India',
   heroSubtitle:
     'Refined apparel crafted from exceptional fabrics, built for everyday wear. Designed by KAIIRA.',
