@@ -227,6 +227,20 @@ export async function createOrder(userId: string, authedEmail: string, input: Cr
   return getOrderById(orderId);
 }
 
+// Lets a customer abandon their own order before it's paid — used when the
+// Razorpay checkout modal is dismissed or fails to open, so a retried
+// checkout doesn't leave a trail of dead PENDING/UNPAID orders behind (and so
+// a coupon used on the abandoned attempt is freed up again via the
+// CANCELLED-path rollback in updateOrderStatus below).
+export async function cancelMyOrder(userId: string, id: string) {
+  const order = await getOrderRaw(id);
+  if (order.userId !== userId) throw new AppError(404, 'NOT_FOUND', 'Order not found');
+  if (order.status !== 'PENDING') {
+    throw new AppError(422, 'ORDER_NOT_CANCELLABLE', 'Only a pending, unpaid order can be cancelled this way');
+  }
+  return updateOrderStatus(id, 'CANCELLED');
+}
+
 export async function updateOrderStatus(id: string, status: OrderStatus) {
   const order = await getOrderRaw(id);
   const statusChanged = order.status !== status;
@@ -250,6 +264,13 @@ export async function updateOrderStatus(id: string, status: OrderStatus) {
           },
         });
       }
+      // A cancelled order shouldn't have permanently burned a one-time-use
+      // coupon — release the redemption and the usage count so the customer
+      // can actually use it on a real, successful order.
+      if (order.couponId) {
+        await tx.couponRedemption.deleteMany({ where: { orderId: id } });
+        await tx.coupon.update({ where: { id: order.couponId }, data: { usedCount: { decrement: 1 } } });
+      }
       await tx.order.update({ where: { id }, data: statusData });
     });
   } else {
@@ -258,7 +279,13 @@ export async function updateOrderStatus(id: string, status: OrderStatus) {
 
   const updated = await getOrderById(id);
   if (statusChanged) {
-    void orderNotificationService.notifyOrderStatusChanged(updated);
+    // Fire-and-forget: a push failure (e.g. the user never enabled
+    // notifications) must never crash the request that changed the order's
+    // status — `void` alone doesn't catch a rejection, it just discards the
+    // return value, so an uncaught one here takes down the whole process.
+    orderNotificationService.notifyOrderStatusChanged(updated).catch((err) => {
+      console.error(`[order] notifyOrderStatusChanged failed for ${updated.orderNumber}:`, err);
+    });
   }
   return updated;
 }

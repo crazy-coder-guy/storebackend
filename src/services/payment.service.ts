@@ -75,6 +75,11 @@ export async function verifyPayment(orderId: string, input: VerifyPaymentInput) 
   });
 
   const verified = await getOrderById(orderId);
-  void orderNotificationService.notifyOrderPlaced(verified);
+  // Fire-and-forget — `void` alone doesn't catch a rejection, so a push
+  // failure (e.g. no subscription) here must never crash the request that
+  // just confirmed a real payment.
+  orderNotificationService.notifyOrderPlaced(verified).catch((err) => {
+    console.error(`[payment] notifyOrderPlaced failed for ${verified.orderNumber}:`, err);
+  });
   return verified;
 }

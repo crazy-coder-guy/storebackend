@@ -36,6 +36,13 @@ export const createOrder = asyncHandler(async (req: Request, res: Response) => {
   return sendSuccess(res, order, 'Order created', 201);
 });
 
+export const cancelMyOrder = asyncHandler(async (req: Request, res: Response) => {
+  const order = await orderService.cancelMyOrder(req.authUser!.id, req.params.id);
+  emitRealtime('order', 'updated', order.id);
+  emitRealtime('inventory', 'updated');
+  return sendSuccess(res, order, 'Order cancelled');
+});
+
 export const updateOrderStatus = asyncHandler(async (req: Request, res: Response) => {
   const order = await orderService.updateOrderStatus(req.params.id, req.body.status);
   emitRealtime('order', 'updated', order.id);
