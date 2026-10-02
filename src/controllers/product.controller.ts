@@ -75,7 +75,10 @@ export const listStorefrontProducts = asyncHandler(async (req: Request, res: Res
     skip,
     take,
     search,
-    status: 'ACTIVE',
+    // LAUNCHING_SOON products are intentionally visible on the storefront
+    // (teased ahead of release) but not yet orderable — enforced at
+    // cart/order time, not by hiding them from this listing.
+    status: ['ACTIVE', 'LAUNCHING_SOON'],
     sortBy,
     sortOrder,
     categoryId: categoryIdList && categoryIdList.length === 1 ? categoryIdList[0] : undefined,

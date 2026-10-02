@@ -136,6 +136,13 @@ export async function createOrder(userId: string, authedEmail: string, input: Cr
 
     for (const line of input.items) {
       const variant = variants.find((v) => v.id === line.variantId)!;
+      if (variant.product.status === 'LAUNCHING_SOON') {
+        throw new AppError(
+          422,
+          'LAUNCHING_SOON',
+          `"${variant.product.name}" hasn't launched yet — check back soon!`
+        );
+      }
       if (variant.stockQuantity < line.quantity) {
         throw new AppError(
           422,

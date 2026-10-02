@@ -9,7 +9,7 @@ export const createProductSchema = z.object({
   basePrice: z.number().nonnegative(),
   mrp: z.number().nonnegative(),
   badge: z.string().max(50).optional().nullable(),
-  status: z.enum(['ACTIVE', 'INACTIVE', 'DRAFT']).optional(),
+  status: z.enum(['ACTIVE', 'INACTIVE', 'DRAFT', 'LAUNCHING_SOON']).optional(),
   gsm: z.number().int().positive().optional().nullable(),
   fabric: z.string().max(255).optional().nullable(),
   fit: z.enum(['REGULAR', 'SLIM', 'OVERSIZED', 'RELAXED']).optional().nullable(),

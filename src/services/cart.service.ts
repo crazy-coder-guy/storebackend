@@ -101,15 +101,25 @@ function assertStockAvailable(productName: string, availableStock: number, desir
   );
 }
 
+// LAUNCHING_SOON products are shown on the storefront to build anticipation
+// but aren't orderable yet — this is the one place that actually enforces
+// that (the product listing/detail pages just show a badge).
+function assertProductPurchasable(productName: string, productStatus: string) {
+  if (productStatus === 'LAUNCHING_SOON') {
+    throw new AppError(422, 'LAUNCHING_SOON', `"${productName}" hasn't launched yet — check back soon!`);
+  }
+}
+
 export async function addCartItem(userId: string, input: AddCartItemInput) {
   const variant = await prisma.productVariant.findUnique({
     where: { id: input.variantId },
-    include: { product: { select: { name: true } } },
+    include: { product: { select: { name: true, status: true } } },
   });
   if (!variant) throw new AppError(404, 'NOT_FOUND', 'Product variant not found');
   if (variant.status !== 'ACTIVE') {
     throw new AppError(422, 'VARIANT_INACTIVE', 'This product option is no longer available');
   }
+  assertProductPurchasable(variant.product.name, variant.product.status);
 
   const cart = await getOrCreateCart(userId);
   const existing = await prisma.cartItem.findUnique({
@@ -130,7 +140,7 @@ export async function addCartItem(userId: string, input: AddCartItemInput) {
 async function getOwnedCartItem(cartId: string, itemId: string) {
   const item = await prisma.cartItem.findFirst({
     where: { id: itemId, cartId },
-    include: { variant: { include: { product: { select: { name: true } } } } },
+    include: { variant: { include: { product: { select: { name: true, status: true } } } } },
   });
   if (!item) throw new AppError(404, 'NOT_FOUND', 'Cart item not found');
   return item;
@@ -139,6 +149,10 @@ async function getOwnedCartItem(cartId: string, itemId: string) {
 export async function updateCartItem(userId: string, itemId: string, input: UpdateCartItemInput) {
   const cart = await getOrCreateCart(userId);
   const item = await getOwnedCartItem(cart.id, itemId);
+
+  if (input.quantity > 0) {
+    assertProductPurchasable(item.variant.product.name, item.variant.product.status);
+  }
 
   if (input.quantity <= 0) {
     await prisma.cartItem.delete({ where: { id: item.id } });

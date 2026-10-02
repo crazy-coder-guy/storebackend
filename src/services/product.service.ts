@@ -1,4 +1,4 @@
-import { Prisma, ProductFit, NeckType } from '@prisma/client';
+import { Prisma, ProductFit, NeckType, ProductStatus } from '@prisma/client';
 import { prisma } from '../database/prisma';
 import { AppError } from '../utils/AppError';
 import { buildMeta } from '../utils/pagination';
@@ -20,7 +20,7 @@ interface ListProductsParams {
   search?: string;
   categoryId?: string;
   categoryIds?: string[];
-  status?: 'ACTIVE' | 'INACTIVE' | 'DRAFT';
+  status?: ProductStatus | ProductStatus[];
   sortBy?: string;
   sortOrder?: 'asc' | 'desc';
   ids?: string[];
@@ -96,7 +96,7 @@ export async function listProducts(params: ListProductsParams) {
     ...(search?.trim() ? buildSearchFilter(search) : {}),
     ...(categoryId ? { categoryId } : {}),
     ...(categoryIds && categoryIds.length > 0 ? { categoryId: { in: categoryIds } } : {}),
-    ...(status ? { status } : {}),
+    ...(status ? { status: Array.isArray(status) ? { in: status } : status } : {}),
     ...(ids && ids.length > 0 ? { id: { in: ids } } : {}),
     ...(fits && fits.length > 0 ? { fit: { in: fits as ProductFit[] } } : {}),
     ...(neckTypes && neckTypes.length > 0 ? { neckType: { in: neckTypes as NeckType[] } } : {}),
@@ -161,9 +161,14 @@ export async function getProductById(id: string) {
 // this one only ever returns a product a shopper is actually allowed to see.
 // A DRAFT or deactivated product must not be publicly viewable or indexable
 // at its slug URL just because the id-based admin endpoint can still see it.
+// A LAUNCHING_SOON product is intentionally public (so it can be teased on
+// the storefront) but not yet orderable — enforced separately in
+// cart/order creation, not by hiding it here.
+const PUBLIC_PRODUCT_STATUSES: ProductStatus[] = ['ACTIVE', 'LAUNCHING_SOON'];
+
 export async function getProductBySlug(slug: string) {
   const product = await prisma.product.findUnique({
-    where: { slug, status: 'ACTIVE' },
+    where: { slug, status: { in: PUBLIC_PRODUCT_STATUSES } },
     include: {
       category: true,
       images: { orderBy: { sortOrder: 'asc' }, include: { color: true } },

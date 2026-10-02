@@ -23,6 +23,7 @@ enum ProductStatus {
   ACTIVE
   INACTIVE
   DRAFT
+  LAUNCHING_SOON
 }
 
 enum ImageType {
