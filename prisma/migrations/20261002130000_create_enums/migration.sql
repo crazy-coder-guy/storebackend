@@ -1,0 +1,29 @@
+-- CreateEnum
+CREATE TYPE "EntityStatus" AS ENUM ('ACTIVE', 'INACTIVE');
+
+-- CreateEnum
+CREATE TYPE "ProductStatus" AS ENUM ('ACTIVE', 'INACTIVE', 'DRAFT', 'LAUNCHING_SOON');
+
+-- CreateEnum
+CREATE TYPE "ImageType" AS ENUM ('PRODUCT', 'MODEL', 'LIFESTYLE');
+
+-- CreateEnum
+CREATE TYPE "TransactionType" AS ENUM ('RESTOCK', 'MANUAL_INCREASE', 'MANUAL_DECREASE', 'ADJUSTMENT');
+
+-- CreateEnum
+CREATE TYPE "ProductFit" AS ENUM ('REGULAR', 'SLIM', 'OVERSIZED', 'RELAXED');
+
+-- CreateEnum
+CREATE TYPE "NeckType" AS ENUM ('CREW', 'V_NECK', 'POLO', 'ROUND', 'MOCK');
+
+-- CreateEnum
+CREATE TYPE "OrderStatus" AS ENUM ('PENDING', 'PROCESSING', 'SHIPPED', 'DELIVERED', 'CANCELLED');
+
+-- CreateEnum
+CREATE TYPE "PaymentStatus" AS ENUM ('PAID', 'UNPAID', 'REFUNDED');
+
+-- CreateEnum
+CREATE TYPE "ExchangeReason" AS ENUM ('DAMAGED', 'DEFECTIVE', 'WRONG_ITEM', 'SIZE_FIT', 'OTHER');
+
+-- CreateEnum
+CREATE TYPE "ExchangeStatus" AS ENUM ('PENDING', 'APPROVED', 'REJECTED', 'COMPLETED', 'CANCELLED');
