@@ -31,9 +31,11 @@ export async function getVariantById(productId: string, variantId: string) {
   return variant;
 }
 
-async function generateSku(productSlug: string, colorCode: string, sizeCode: string) {
+async function generateSku(productSlug: string, colorCode: string | null | undefined, sizeCode: string) {
   const fragment = slugToSkuFragment(productSlug, 2);
-  const base = `${fragment}-${colorCode}-${sizeCode}`.toUpperCase();
+  const base = colorCode
+    ? `${fragment}-${colorCode}-${sizeCode}`.toUpperCase()
+    : `${fragment}-${sizeCode}`.toUpperCase();
 
   let sku = base;
   let suffix = 1;
@@ -49,32 +51,36 @@ export async function createProductVariant(productId: string, input: CreateProdu
   const product = await getProductOrThrow(productId);
 
   const [color, size] = await Promise.all([
-    prisma.color.findUnique({ where: { id: input.colorId } }),
+    input.colorId ? prisma.color.findUnique({ where: { id: input.colorId } }) : Promise.resolve(null),
     prisma.size.findUnique({ where: { id: input.sizeId } }),
   ]);
-  if (!color) throw new AppError(422, 'INVALID_COLOR', 'colorId does not reference an existing color');
-  if (!size) throw new AppError(422, 'INVALID_SIZE', 'sizeId does not reference an existing size');
+  if (input.colorId && !color) {
+    throw new AppError(422, 'INVALID_COLOR', 'colorId does not reference an existing color');
+  }
+  if (!size) {
+    throw new AppError(422, 'INVALID_SIZE', 'sizeId does not reference an existing size');
+  }
 
-  const existingCombo = await prisma.productVariant.findUnique({
+  const existingCombo = await prisma.productVariant.findFirst({
     where: {
-      productId_colorId_sizeId: {
-        productId,
-        colorId: input.colorId,
-        sizeId: input.sizeId,
-      },
+      productId,
+      colorId: input.colorId ?? null,
+      sizeId: input.sizeId,
     },
   });
   if (existingCombo) {
     throw new AppError(
       409,
       'DUPLICATE_VARIANT',
-      'A variant with this product/color/size combination already exists'
+      input.colorId
+        ? 'A variant with this product/color/size combination already exists'
+        : 'A variant with this product/size combination already exists'
     );
   }
 
   const sku = input.sku
     ? input.sku.toUpperCase()
-    : await generateSku(product.slug, color.code, size.code);
+    : await generateSku(product.slug, color?.code, size.code);
 
   if (input.sku) {
     const existingSku = await prisma.productVariant.findUnique({ where: { sku } });
@@ -84,7 +90,7 @@ export async function createProductVariant(productId: string, input: CreateProdu
   return prisma.productVariant.create({
     data: {
       productId,
-      colorId: input.colorId,
+      colorId: input.colorId ?? null,
       sizeId: input.sizeId,
       sku,
       price: input.price ?? null,
@@ -102,6 +108,14 @@ export async function updateProductVariant(
   input: UpdateProductVariantInput
 ) {
   await getVariantById(productId, variantId);
+  if (input.colorId) {
+    const color = await prisma.color.findUnique({ where: { id: input.colorId } });
+    if (!color) throw new AppError(422, 'INVALID_COLOR', 'colorId does not reference an existing color');
+  }
+  if (input.sizeId) {
+    const size = await prisma.size.findUnique({ where: { id: input.sizeId } });
+    if (!size) throw new AppError(422, 'INVALID_SIZE', 'sizeId does not reference an existing size');
+  }
 
   const data: Prisma.ProductVariantUncheckedUpdateInput = { ...input };
   if (input.sku) data.sku = input.sku.toUpperCase();

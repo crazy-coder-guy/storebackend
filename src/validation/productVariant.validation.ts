@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
 export const createProductVariantSchema = z.object({
-  colorId: z.string().uuid(),
+  colorId: z.string().uuid().optional().nullable(),
   sizeId: z.string().uuid(),
   sku: z.string().min(1).max(100).optional(),
   price: z.number().nonnegative().optional().nullable(),

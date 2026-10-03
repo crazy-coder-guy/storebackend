@@ -209,25 +209,25 @@ const productVariantSchema = {
   properties: {
     id: { type: 'string', format: 'uuid' },
     productId: { type: 'string', format: 'uuid' },
-    colorId: { type: 'string', format: 'uuid' },
+    colorId: { type: 'string', format: 'uuid', nullable: true },
     sizeId: { type: 'string', format: 'uuid' },
     sku: { type: 'string' },
     price: { type: 'number', nullable: true },
     stockQuantity: { type: 'integer' },
     badge: { type: 'string', nullable: true, description: 'e.g. "New", "Bestseller"' },
     status: { type: 'string', enum: entityStatusEnum },
-    color: colorSchema,
+    color: { ...colorSchema, nullable: true },
     size: sizeSchema,
   },
 };
 
 const productVariantCreateSchema = {
   type: 'object',
-  required: ['colorId', 'sizeId'],
+  required: ['sizeId'],
   properties: {
-    colorId: { type: 'string', format: 'uuid' },
+    colorId: { type: 'string', format: 'uuid', nullable: true },
     sizeId: { type: 'string', format: 'uuid' },
-    sku: { type: 'string', description: 'Optional; auto-generated as SLUG-COLORCODE-SIZECODE if omitted' },
+    sku: { type: 'string', description: 'Optional; auto-generated as SLUG-COLORCODE-SIZECODE or SLUG-SIZECODE if omitted' },
     price: { type: 'number', nullable: true },
     stockQuantity: { type: 'integer', default: 0 },
     badge: { type: 'string', nullable: true },
@@ -633,7 +633,7 @@ const productsPaths = {
       tags: ['Product Variants'],
       summary: 'Create a product variant',
       description:
-        'SKU is auto-generated from product slug + color code + size code (e.g. KAI-OV-BLK-S) when omitted. Rejects duplicate SKU (409 DUPLICATE_SKU) and duplicate product/color/size combos (409 DUPLICATE_VARIANT).',
+        'SKU is auto-generated from product slug + color code (if provided) + size code (e.g. KAI-OV-BLK-S or KAI-OV-S) when omitted. Rejects duplicate SKU (409 DUPLICATE_SKU) and duplicate product/color/size combos (409 DUPLICATE_VARIANT).',
       parameters: [{ name: 'productId', in: 'path', required: true, schema: { type: 'string' } }],
       requestBody: { content: { 'application/json': { schema: productVariantCreateSchema } } },
       responses: {

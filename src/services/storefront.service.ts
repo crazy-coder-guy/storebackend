@@ -48,7 +48,7 @@ export async function listFeaturedProducts() {
 
   return rows.map(({ product, ...featured }) => {
     const { variants, ...productRest } = product;
-    const colorMap = new Map<string, (typeof variants)[number]['color']>();
+    const colorMap = new Map<string, NonNullable<(typeof variants)[number]['color']>>();
     for (const variant of variants) {
       if (variant.color) colorMap.set(variant.color.id, variant.color);
     }

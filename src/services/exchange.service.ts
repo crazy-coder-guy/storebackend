@@ -36,7 +36,7 @@ function serializeItemForEligibility(item: {
   orderId: string;
   order: { orderNumber: string };
   variant: {
-    color: { name: string; hexCode: string };
+    color: { name: string; hexCode: string } | null;
     size: { code: string };
     product: { id: string; name: string; images: { imageUrl: string }[] };
   };
@@ -48,8 +48,8 @@ function serializeItemForEligibility(item: {
     productId: item.variant.product.id,
     productName: item.variant.product.name,
     productImage: item.variant.product.images[0]?.imageUrl ?? null,
-    colorName: item.variant.color.name,
-    colorHex: item.variant.color.hexCode,
+    colorName: item.variant.color?.name ?? null,
+    colorHex: item.variant.color?.hexCode ?? null,
     sizeCode: item.variant.size.code,
   };
 }
@@ -98,7 +98,7 @@ function serializeRequest(request: {
   orderItem: {
     id: string;
     variant: {
-      color: { name: string; hexCode: string };
+      color: { name: string; hexCode: string } | null;
       size: { code: string };
       product: { id: string; name: string; images: { imageUrl: string }[] };
     };
@@ -112,8 +112,8 @@ function serializeRequest(request: {
     productId: request.orderItem.variant.product.id,
     productName: request.orderItem.variant.product.name,
     productImage: request.orderItem.variant.product.images[0]?.imageUrl ?? null,
-    colorName: request.orderItem.variant.color.name,
-    colorHex: request.orderItem.variant.color.hexCode,
+    colorName: request.orderItem.variant.color?.name ?? null,
+    colorHex: request.orderItem.variant.color?.hexCode ?? null,
     sizeCode: request.orderItem.variant.size.code,
     reason: request.reason,
     description: request.description,

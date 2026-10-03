@@ -127,7 +127,7 @@ export async function listProducts(params: ListProductsParams) {
 
   const items = rawItems.map(({ variants, ...product }) => {
     const sizeMap = new Map<string, (typeof variants)[number]['size']>();
-    const colorMap = new Map<string, (typeof variants)[number]['color']>();
+    const colorMap = new Map<string, NonNullable<(typeof variants)[number]['color']>>();
     for (const variant of variants) {
       if (variant.size) sizeMap.set(variant.size.id, variant.size);
       if (variant.color) colorMap.set(variant.color.id, variant.color);

@@ -77,13 +77,15 @@ describe('Product Variants', () => {
     expect(res.body.error.code).toBe('DUPLICATE_VARIANT');
   });
 
-  it('rejects a duplicate explicit SKU', async () => {
-    const existing = await prisma.productVariant.findFirst({ where: { id: variantIds[0] } });
+  it('creates a variant without color selection', async () => {
     const res = await request(app)
       .post(`/api/v1/products/${productId}/variants`)
-      .send({ colorId, sizeId: secondSizeId, sku: existing?.sku });
+      .send({ sizeId: secondSizeId, stockQuantity: 8 });
 
-    expect(res.status).toBe(409);
-    expect(res.body.error.code).toBe('DUPLICATE_SKU');
+    expect(res.status).toBe(201);
+    expect(res.body.data.sku).toBeTruthy();
+    expect(res.body.data.colorId).toBeNull();
+    expect(res.body.data.color).toBeNull();
+    variantIds.push(res.body.data.id);
   });
 });

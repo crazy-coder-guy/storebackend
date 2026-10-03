@@ -169,7 +169,7 @@ model Color {
 model ProductVariant {
   id            String       @id @default(uuid())
   productId     String       @map("product_id")
-  colorId       String       @map("color_id")
+  colorId       String?      @map("color_id")
   sizeId        String       @map("size_id")
   sku           String       @unique
   price         Decimal?
@@ -180,16 +180,16 @@ model ProductVariant {
   updatedAt     DateTime     @updatedAt @map("updated_at")
 
   product               Product                @relation(fields: [productId], references: [id], onDelete: Cascade)
-  color                 Color                  @relation(fields: [colorId], references: [id], onDelete: Restrict)
+  color                 Color?                 @relation(fields: [colorId], references: [id], onDelete: SetNull)
   size                  Size                   @relation(fields: [sizeId], references: [id], onDelete: Restrict)
   inventoryTransactions InventoryTransaction[]
   orderItems            OrderItem[]
   cartItems             CartItem[]
 
-  @@unique([productId, colorId, sizeId])
   @@index([productId])
   @@index([colorId])
   @@index([sizeId])
+  @@index([productId, sizeId])
   @@map("product_variants")
 }
 

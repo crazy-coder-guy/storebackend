@@ -36,7 +36,7 @@ function serializeCartItem(item: CartItemWithRelations) {
     mrp: Number(product.mrp),
     image: product.images[0]?.imageUrl ?? null,
     size: variant.size.code || variant.size.name,
-    color: { name: variant.color.name, hex: variant.color.hexCode },
+    color: variant.color ? { name: variant.color.name, hex: variant.color.hexCode } : null,
     quantity: item.quantity,
     stockQuantity: variant.stockQuantity,
   };
