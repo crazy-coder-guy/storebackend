@@ -216,11 +216,14 @@ model InventoryTransaction {
 // Singleton row (id is always "default") holding the customer storefront's
 // editable copy — the top announcement bar and homepage hero text.
 model StorefrontSetting {
-  id               String   @id @default("default")
-  announcementText String   @map("announcement_text")
-  heroTitle        String   @map("hero_title")
-  heroSubtitle     String   @map("hero_subtitle")
-  updatedAt        DateTime @updatedAt @map("updated_at")
+  id                String    @id @default("default")
+  announcementText  String    @map("announcement_text")
+  heroTitle         String    @map("hero_title")
+  heroSubtitle      String    @map("hero_subtitle")
+  isMaintenance     Boolean   @default(false) @map("is_maintenance")
+  maintenanceUntil  DateTime? @map("maintenance_until")
+  maintenanceNotice String?   @map("maintenance_notice")
+  updatedAt         DateTime  @updatedAt @map("updated_at")
 
   @@map("storefront_settings")
 }

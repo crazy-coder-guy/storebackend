@@ -15,18 +15,38 @@ const DEFAULT_SETTINGS = {
 };
 
 export async function getStorefrontSettings() {
-  return prisma.storefrontSetting.upsert({
+  const setting = await prisma.storefrontSetting.upsert({
     where: { id: SETTINGS_ID },
     update: {},
     create: { id: SETTINGS_ID, ...DEFAULT_SETTINGS },
   });
+
+  // If maintenance mode is enabled and the expected end time has arrived/passed,
+  // automatically disable maintenance mode in the database!
+  if (setting.isMaintenance && setting.maintenanceUntil) {
+    if (new Date() >= new Date(setting.maintenanceUntil)) {
+      return prisma.storefrontSetting.update({
+        where: { id: SETTINGS_ID },
+        data: {
+          isMaintenance: false,
+          maintenanceUntil: null,
+        },
+      });
+    }
+  }
+
+  return setting;
 }
 
 export async function updateStorefrontSettings(input: UpdateStorefrontSettingsInput) {
   await getStorefrontSettings();
+  const data: Record<string, any> = { ...input };
+  if (input.maintenanceUntil !== undefined) {
+    data.maintenanceUntil = input.maintenanceUntil ? new Date(input.maintenanceUntil) : null;
+  }
   return prisma.storefrontSetting.update({
     where: { id: SETTINGS_ID },
-    data: input,
+    data,
   });
 }
 

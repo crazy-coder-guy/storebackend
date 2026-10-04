@@ -4,6 +4,9 @@ export const updateStorefrontSettingsSchema = z.object({
   announcementText: z.string().min(1).max(300).optional(),
   heroTitle: z.string().min(1).max(200).optional(),
   heroSubtitle: z.string().min(1).max(500).optional(),
+  isMaintenance: z.boolean().optional(),
+  maintenanceUntil: z.string().datetime().nullable().optional(),
+  maintenanceNotice: z.string().max(500).nullable().optional(),
 });
 
 export const setFeaturedProductsSchema = z.object({
