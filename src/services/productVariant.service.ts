@@ -97,6 +97,9 @@ export async function createProductVariant(productId: string, input: CreateProdu
       stockQuantity: input.stockQuantity ?? 0,
       badge: input.badge ?? null,
       status: input.status,
+      chestWidth: input.chestWidth ?? null,
+      bodyLength: input.bodyLength ?? null,
+      sleeveLength: input.sleeveLength ?? null,
     },
     include: { color: true, size: true },
   });

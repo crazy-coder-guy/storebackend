@@ -8,6 +8,10 @@ export const createProductVariantSchema = z.object({
   stockQuantity: z.number().int().nonnegative().optional(),
   badge: z.string().max(50).optional().nullable(),
   status: z.enum(['ACTIVE', 'INACTIVE']).optional(),
+  // Garment measurements (inches)
+  chestWidth: z.number().nonnegative().optional().nullable(),
+  bodyLength: z.number().nonnegative().optional().nullable(),
+  sleeveLength: z.number().nonnegative().optional().nullable(),
 });
 
 export const updateProductVariantSchema = createProductVariantSchema.partial();
