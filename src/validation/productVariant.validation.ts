@@ -12,6 +12,7 @@ export const createProductVariantSchema = z.object({
   chestWidth: z.number().nonnegative().optional().nullable(),
   bodyLength: z.number().nonnegative().optional().nullable(),
   sleeveLength: z.number().nonnegative().optional().nullable(),
+  shoulderWidth: z.number().nonnegative().optional().nullable(),
 });
 
 export const updateProductVariantSchema = createProductVariantSchema.partial();

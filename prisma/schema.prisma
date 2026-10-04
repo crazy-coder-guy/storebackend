@@ -180,6 +180,7 @@ model ProductVariant {
   chestWidth    Decimal?     @map("chest_width")
   bodyLength    Decimal?     @map("body_length")
   sleeveLength  Decimal?     @map("sleeve_length")
+  shoulderWidth Decimal?     @map("shoulder_width")
   createdAt     DateTime     @default(now()) @map("created_at")
   updatedAt     DateTime     @updatedAt @map("updated_at")
 

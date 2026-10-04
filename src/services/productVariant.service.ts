@@ -100,6 +100,7 @@ export async function createProductVariant(productId: string, input: CreateProdu
       chestWidth: input.chestWidth ?? null,
       bodyLength: input.bodyLength ?? null,
       sleeveLength: input.sleeveLength ?? null,
+      shoulderWidth: input.shoulderWidth ?? null,
     },
     include: { color: true, size: true },
   });
