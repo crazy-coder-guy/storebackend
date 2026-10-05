@@ -3,6 +3,8 @@ import { prisma } from '../database/prisma';
 import { AppError } from '../utils/AppError';
 import { buildMeta } from '../utils/pagination';
 import { generateSlug } from '../utils/slug';
+import { calculateRecommendedSellingPrice } from '../utils/pricing';
+import { getPricingSettings } from './pricing.service';
 import { CreateProductInput, UpdateProductInput } from '../validation/product.validation';
 
 const SORTABLE_FIELDS = new Set(['created_at', 'base_price', 'name']);
@@ -194,9 +196,22 @@ async function assertCategoryExists(categoryId: string) {
   if (!category) throw new AppError(422, 'INVALID_CATEGORY', 'categoryId does not reference an existing category');
 }
 
+// Whenever a cost price is set, the selling price is not a free choice — it's
+// mandatorily derived from cost + the admin's pricing settings (packaging,
+// courier, gateway %, target profit, ...). This runs on every create/update
+// that carries a cost price, with no separate "apply" step anywhere. A
+// product with no cost price keeps working exactly as before (basePrice set
+// directly), since there's nothing to compute a price from.
+async function resolveBasePrice(costPrice: number): Promise<number> {
+  const settings = await getPricingSettings();
+  return calculateRecommendedSellingPrice(costPrice, settings).recommendedSellingPrice;
+}
+
 export async function createProduct(input: CreateProductInput) {
   await assertCategoryExists(input.categoryId);
   const slug = input.slug ? generateSlug(input.slug) : generateSlug(input.name);
+  const costPrice = input.costPrice ?? null;
+  const basePrice = costPrice && costPrice > 0 ? await resolveBasePrice(costPrice) : input.basePrice;
 
   return prisma.product.create({
     data: {
@@ -205,9 +220,9 @@ export async function createProduct(input: CreateProductInput) {
       description: input.description ?? null,
       categoryId: input.categoryId,
       productType: input.productType,
-      basePrice: input.basePrice,
+      basePrice,
       mrp: input.mrp,
-      costPrice: input.costPrice ?? null,
+      costPrice,
       badge: input.badge ?? null,
       status: input.status,
       gsm: input.gsm ?? null,
@@ -220,11 +235,18 @@ export async function createProduct(input: CreateProductInput) {
 }
 
 export async function updateProduct(id: string, input: UpdateProductInput) {
-  await getProductById(id);
+  const existing = await getProductById(id);
   if (input.categoryId) await assertCategoryExists(input.categoryId);
 
   const data: Prisma.ProductUncheckedUpdateInput = { ...input };
   if (input.slug) data.slug = generateSlug(input.slug);
+
+  // Effective cost price after this update — from the request if it's
+  // touching costPrice, otherwise whatever the product already has.
+  const effectiveCostPrice = input.costPrice !== undefined ? input.costPrice : Number(existing.costPrice ?? 0);
+  if (effectiveCostPrice && effectiveCostPrice > 0) {
+    data.basePrice = await resolveBasePrice(effectiveCostPrice);
+  }
 
   return prisma.product.update({ where: { id }, data });
 }

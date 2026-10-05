@@ -2,10 +2,22 @@ import { Prisma } from '@prisma/client';
 import { prisma } from '../database/prisma';
 import { AppError } from '../utils/AppError';
 import { slugToSkuFragment } from '../utils/slug';
+import { calculateRecommendedSellingPrice } from '../utils/pricing';
+import { getPricingSettings } from './pricing.service';
 import {
   CreateProductVariantInput,
   UpdateProductVariantInput,
 } from '../validation/productVariant.validation';
+
+// Mirrors product.service.ts's resolveBasePrice — when this specific variant
+// overrides the product's cost price, its own selling-price override is
+// mandatorily derived from that cost too, not freely chosen. A variant with
+// no cost override keeps falling back to the product's (already-derived)
+// basePrice via `price: null`, so nothing changes for the common case.
+async function resolveVariantPrice(costPrice: number): Promise<number> {
+  const settings = await getPricingSettings();
+  return calculateRecommendedSellingPrice(costPrice, settings).recommendedSellingPrice;
+}
 
 async function getProductOrThrow(productId: string) {
   const product = await prisma.product.findUnique({ where: { id: productId } });
@@ -87,13 +99,18 @@ export async function createProductVariant(productId: string, input: CreateProdu
     if (existingSku) throw new AppError(409, 'DUPLICATE_SKU', `SKU ${sku} is already in use`);
   }
 
+  const variantCostPrice = input.costPrice ?? null;
+  const price =
+    variantCostPrice && variantCostPrice > 0 ? await resolveVariantPrice(variantCostPrice) : input.price ?? null;
+
   return prisma.productVariant.create({
     data: {
       productId,
       colorId: input.colorId ?? null,
       sizeId: input.sizeId,
       sku,
-      price: input.price ?? null,
+      price,
+      costPrice: variantCostPrice,
       stockQuantity: input.stockQuantity ?? 0,
       badge: input.badge ?? null,
       status: input.status,
@@ -111,7 +128,7 @@ export async function updateProductVariant(
   variantId: string,
   input: UpdateProductVariantInput
 ) {
-  await getVariantById(productId, variantId);
+  const existing = await getVariantById(productId, variantId);
   if (input.colorId) {
     const color = await prisma.color.findUnique({ where: { id: input.colorId } });
     if (!color) throw new AppError(422, 'INVALID_COLOR', 'colorId does not reference an existing color');
@@ -123,6 +140,11 @@ export async function updateProductVariant(
 
   const data: Prisma.ProductVariantUncheckedUpdateInput = { ...input };
   if (input.sku) data.sku = input.sku.toUpperCase();
+
+  const effectiveCostPrice = input.costPrice !== undefined ? input.costPrice : Number(existing.costPrice ?? 0);
+  if (effectiveCostPrice && effectiveCostPrice > 0) {
+    data.price = await resolveVariantPrice(effectiveCostPrice);
+  }
 
   return prisma.productVariant.update({
     where: { id: variantId },
