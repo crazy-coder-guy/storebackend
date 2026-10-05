@@ -20,3 +20,12 @@ export const getProfitabilitySummary = asyncHandler(async (req: Request, res: Re
   });
   return sendSuccess(res, summary, 'Profitability summary fetched');
 });
+
+const ALLOWED_RANGES = new Set([7, 15, 30]);
+
+export const getProfitabilityTimeseries = asyncHandler(async (req: Request, res: Response) => {
+  const requested = parseInt(String(req.query.days ?? '7'), 10);
+  const days = ALLOWED_RANGES.has(requested) ? requested : 7;
+  const series = await dashboardService.getProfitabilityTimeseries(days);
+  return sendSuccess(res, { days, series }, 'Profitability timeseries fetched');
+});
