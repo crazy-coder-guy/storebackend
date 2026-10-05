@@ -44,6 +44,7 @@ export const listProducts = asyncHandler(async (req: Request, res: Response) => 
     sortBy,
     sortOrder,
     ids,
+    includeMargin: true,
   });
   return sendSuccess(res, result, 'Products fetched');
 });

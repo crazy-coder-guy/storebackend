@@ -33,6 +33,10 @@ interface ListProductsParams {
   minPrice?: number;
   maxPrice?: number;
   inStock?: boolean;
+  // Admin-only (set by the admin product-table controller, never by the
+  // public storefront one) — adds a computed `marginAmount` per item without
+  // ever exposing the raw costPrice itself.
+  includeMargin?: boolean;
 }
 
 function buildSearchFilter(search: string): Prisma.ProductWhereInput {
@@ -69,6 +73,7 @@ export async function listProducts(params: ListProductsParams) {
     minPrice,
     maxPrice,
     inStock,
+    includeMargin,
   } = params;
 
   const priceFilter: Prisma.ProductWhereInput =
@@ -109,7 +114,7 @@ export async function listProducts(params: ListProductsParams) {
   const sortField = sortBy && SORTABLE_FIELDS.has(sortBy) ? FIELD_MAP[sortBy] : 'createdAt';
   const orderBy = { [sortField]: sortOrder === 'asc' ? 'asc' : 'desc' } as Prisma.ProductOrderByWithRelationInput;
 
-  const [rawItems, total] = await Promise.all([
+  const [rawItems, total, pricingSettings] = await Promise.all([
     prisma.product.findMany({
       where,
       skip,
@@ -125,6 +130,9 @@ export async function listProducts(params: ListProductsParams) {
       },
     }),
     prisma.product.count({ where }),
+    // Only the admin table path ever sets includeMargin, so this stays free
+    // for every storefront-facing call.
+    includeMargin ? getPricingSettings() : Promise.resolve(null),
   ]);
 
   const items = rawItems.map(({ variants, costPrice, ...product }) => {
@@ -137,11 +145,28 @@ export async function listProducts(params: ListProductsParams) {
     const sizes = [...sizeMap.values()].sort((a, b) => a.sortOrder - b.sortOrder);
     const colors = [...colorMap.values()].sort((a, b) => a.name.localeCompare(b.name));
     const inStock = variants.some((v) => v.stockQuantity > 0);
+
     // This list is shared by the admin table and the public storefront
-    // browse/search views — costPrice must never appear in either; the
-    // admin cost/profit view lives only in getProductById's single-product
-    // edit form.
-    return { ...product, sizes, colors, inStock };
+    // browse/search views — costPrice itself must never appear in either.
+    // marginAmount is only ever computed (and only ever attached) on the
+    // admin's includeMargin=true path.
+    let marginAmount: number | null = null;
+    if (pricingSettings && costPrice != null) {
+      const basePriceNum = Number(product.basePrice);
+      const cost = Number(costPrice);
+      const paymentGatewayFee = (basePriceNum * Number(pricingSettings.paymentGatewayPercent)) / 100;
+      const totalCost =
+        cost +
+        Number(pricingSettings.packagingCost) +
+        Number(pricingSettings.courierCost) +
+        Number(pricingSettings.exchangeBuffer) +
+        Number(pricingSettings.miscCost) +
+        Number(pricingSettings.marketingCost) +
+        paymentGatewayFee;
+      marginAmount = Math.round((basePriceNum - totalCost) * 100) / 100;
+    }
+
+    return { ...product, sizes, colors, inStock, ...(includeMargin ? { marginAmount } : {}) };
   });
 
   return { items, meta: buildMeta(page, limit, total) };
