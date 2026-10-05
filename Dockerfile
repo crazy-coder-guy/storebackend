@@ -33,6 +33,7 @@ COPY --from=build /app/dist ./dist
 COPY --from=build /app/prisma ./prisma
 COPY --from=build /app/node_modules/.prisma ./node_modules/.prisma
 COPY --from=build /app/node_modules/@prisma ./node_modules/@prisma
+COPY scripts/recalculate-prices.js ./scripts/recalculate-prices.js
 
 # PORT should match the PORT env var read by src/config/index.ts (defaults to 3000)
 ARG PORT=3000
@@ -47,4 +48,9 @@ EXPOSE ${PORT}
 # had ever run against Render's database). `migrate deploy` is safe to run
 # on every boot — it only applies migrations not yet recorded as applied and
 # no-ops otherwise.
-CMD ["sh", "-c", "npx prisma migrate deploy && node dist/server.js"]
+#
+# recalculate-prices.js then keeps every product/variant's selling price in
+# sync with its cost price + the current pricing settings, with zero admin
+# action required — it's idempotent (a no-op once prices already match) and
+# never fails the boot (errors are caught and logged inside the script).
+CMD ["sh", "-c", "npx prisma migrate deploy && node scripts/recalculate-prices.js && node dist/server.js"]
