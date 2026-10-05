@@ -8,6 +8,8 @@ export const createProductSchema = z.object({
   productType: z.string().min(1).max(100),
   basePrice: z.number().nonnegative(),
   mrp: z.number().nonnegative(),
+  // Manufacturing/procurement cost — never exposed to the storefront.
+  costPrice: z.number().nonnegative().optional().nullable(),
   badge: z.string().max(50).optional().nullable(),
   status: z.enum(['ACTIVE', 'INACTIVE', 'DRAFT', 'LAUNCHING_SOON']).optional(),
   gsm: z.number().int().positive().optional().nullable(),

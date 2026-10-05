@@ -125,7 +125,7 @@ export async function listProducts(params: ListProductsParams) {
     prisma.product.count({ where }),
   ]);
 
-  const items = rawItems.map(({ variants, ...product }) => {
+  const items = rawItems.map(({ variants, costPrice, ...product }) => {
     const sizeMap = new Map<string, (typeof variants)[number]['size']>();
     const colorMap = new Map<string, NonNullable<(typeof variants)[number]['color']>>();
     for (const variant of variants) {
@@ -135,6 +135,10 @@ export async function listProducts(params: ListProductsParams) {
     const sizes = [...sizeMap.values()].sort((a, b) => a.sortOrder - b.sortOrder);
     const colors = [...colorMap.values()].sort((a, b) => a.name.localeCompare(b.name));
     const inStock = variants.some((v) => v.stockQuantity > 0);
+    // This list is shared by the admin table and the public storefront
+    // browse/search views — costPrice must never appear in either; the
+    // admin cost/profit view lives only in getProductById's single-product
+    // edit form.
     return { ...product, sizes, colors, inStock };
   });
 
@@ -178,7 +182,11 @@ export async function getProductBySlug(slug: string) {
     },
   });
   if (!product) throw new AppError(404, 'NOT_FOUND', 'Product not found');
-  return product;
+
+  // This is the one product-read path a shopper can reach directly — cost
+  // price (product- and variant-level) must never appear in its response.
+  const { costPrice: _costPrice, variants, ...rest } = product;
+  return { ...rest, variants: variants.map(({ costPrice: _variantCostPrice, ...variant }) => variant) };
 }
 
 async function assertCategoryExists(categoryId: string) {
@@ -199,6 +207,7 @@ export async function createProduct(input: CreateProductInput) {
       productType: input.productType,
       basePrice: input.basePrice,
       mrp: input.mrp,
+      costPrice: input.costPrice ?? null,
       badge: input.badge ?? null,
       status: input.status,
       gsm: input.gsm ?? null,

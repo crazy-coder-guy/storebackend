@@ -5,7 +5,8 @@ import { AppError } from '../utils/AppError';
 import { buildMeta } from '../utils/pagination';
 import { CreateOrderInput } from '../validation/order.validation';
 import * as orderNotificationService from './orderNotification.service';
-import { calculateDeliveryFee } from '../utils/pricing';
+import { calculateDeliveryFee, calculateOrderProfit } from '../utils/pricing';
+import { getPricingSettings } from './pricing.service';
 import * as addressService from './address.service';
 import * as couponService from './coupon.service';
 
@@ -53,6 +54,10 @@ function serializeOrder(order: OrderWithRelations) {
     paymentStatus: order.paymentStatus,
     totalAmount: order.totalAmount,
     discountAmount: order.discountAmount,
+    // Shipping is the one cost figure customers are meant to see — every
+    // other cost/profit field on Order is intentionally left out of this
+    // whitelist (product cost, courier, packaging, gateway fee, margin, ...).
+    shippingFee: order.shippingFee,
     couponCode: order.coupon?.code ?? null,
     itemsCount,
     items: order.items.map((item) => ({
@@ -76,6 +81,45 @@ function serializeOrder(order: OrderWithRelations) {
     pincode: order.pincode,
     createdAt: order.createdAt,
     deliveredAt: order.deliveredAt,
+  };
+}
+
+// Admin-only view — adds the full cost/profit breakdown on top of the
+// customer-safe fields above. Never used on any customer-facing route.
+function serializeOrderForAdmin(order: OrderWithRelations) {
+  const netContributionPercent =
+    Number(order.totalAmount) > 0 ? (Number(order.netContribution) / Number(order.totalAmount)) * 100 : 0;
+
+  return {
+    ...serializeOrder(order),
+    items: order.items.map((item) => {
+      const unitProfit = Number(item.unitPrice) - Number(item.costPrice);
+      return {
+        id: item.id,
+        productId: item.variant.productId,
+        productSlug: item.variant.product.slug,
+        productImageUrl: item.variant.product.images[0]?.imageUrl ?? null,
+        productName: item.variant.product.name,
+        colorName: item.variant.color?.name ?? null,
+        colorHex: item.variant.color?.hexCode ?? null,
+        sizeName: item.variant.size.name,
+        sizeCode: item.variant.size.code,
+        quantity: item.quantity,
+        unitPrice: item.unitPrice,
+        costPrice: item.costPrice,
+        unitProfit,
+        profitMarginPercent: Number(item.unitPrice) > 0 ? (unitProfit / Number(item.unitPrice)) * 100 : 0,
+      };
+    }),
+    productCostTotal: order.productCostTotal,
+    packagingCost: order.packagingCost,
+    courierCost: order.courierCost,
+    paymentGatewayFee: order.paymentGatewayFee,
+    marketingCost: order.marketingCost,
+    exchangeBuffer: order.exchangeBuffer,
+    miscCost: order.miscCost,
+    netContribution: order.netContribution,
+    netContributionPercent,
   };
 }
 
@@ -107,7 +151,7 @@ export async function listOrders(params: ListOrdersParams) {
     prisma.order.count({ where }),
   ]);
 
-  return { items: rawItems.map(serializeOrder), meta: buildMeta(page, limit, total) };
+  return { items: rawItems.map(serializeOrderForAdmin), meta: buildMeta(page, limit, total) };
 }
 
 async function getOrderRaw(id: string): Promise<OrderWithRelations> {
@@ -118,6 +162,10 @@ async function getOrderRaw(id: string): Promise<OrderWithRelations> {
 
 export async function getOrderById(id: string) {
   return serializeOrder(await getOrderRaw(id));
+}
+
+export async function getOrderByIdForAdmin(id: string) {
+  return serializeOrderForAdmin(await getOrderRaw(id));
 }
 
 export async function listMyOrders(userId: string) {
@@ -162,6 +210,10 @@ export async function trackOrder(orderNumber: string, contact: string) {
 }
 
 export async function createOrder(userId: string, authedEmail: string, input: CreateOrderInput) {
+  // Read-only and independent of the transaction's own data — fetched once
+  // up front rather than inside it.
+  const pricingSettings = await getPricingSettings();
+
   const orderId = await prismaDirect.$transaction(async (tx) => {
     const variantIds = input.items.map((item) => item.variantId);
     const variants = await tx.productVariant.findMany({
@@ -174,7 +226,13 @@ export async function createOrder(userId: string, authedEmail: string, input: Cr
     }
 
     let totalAmount = new Prisma.Decimal(0);
-    const itemsData: { variantId: string; quantity: number; unitPrice: Prisma.Decimal }[] = [];
+    let productCostTotal = new Prisma.Decimal(0);
+    const itemsData: {
+      variantId: string;
+      quantity: number;
+      unitPrice: Prisma.Decimal;
+      costPrice: Prisma.Decimal;
+    }[] = [];
 
     for (const line of input.items) {
       const variant = variants.find((v) => v.id === line.variantId)!;
@@ -195,8 +253,12 @@ export async function createOrder(userId: string, authedEmail: string, input: Cr
         );
       }
       const unitPrice = new Prisma.Decimal(variant.price ?? variant.product.basePrice);
+      // Snapshotted at order time so later cost/price edits don't retroactively
+      // change the profit history of an already-placed order.
+      const costPrice = new Prisma.Decimal(variant.costPrice ?? variant.product.costPrice ?? 0);
       totalAmount = totalAmount.add(unitPrice.mul(line.quantity));
-      itemsData.push({ variantId: variant.id, quantity: line.quantity, unitPrice });
+      productCostTotal = productCostTotal.add(costPrice.mul(line.quantity));
+      itemsData.push({ variantId: variant.id, quantity: line.quantity, unitPrice, costPrice });
     }
 
     const subtotal = totalAmount;
@@ -213,7 +275,13 @@ export async function createOrder(userId: string, authedEmail: string, input: Cr
       appliedCouponId = coupon.id;
     }
 
-    totalAmount = totalAmount.sub(discountAmount).add(calculateDeliveryFee(Number(subtotal)));
+    const shippingFee = calculateDeliveryFee(Number(subtotal), pricingSettings);
+    totalAmount = totalAmount.sub(discountAmount).add(shippingFee);
+
+    // Courier/packaging/exchange-buffer/misc/marketing are order-level costs
+    // (charged once regardless of item count) — only productCostTotal scales
+    // with quantity. See calculateOrderProfit.
+    const profit = calculateOrderProfit(Number(totalAmount), Number(productCostTotal), shippingFee, pricingSettings);
 
     const orderNumber = `#ORD-${1000 + (await tx.order.count()) + 1}`;
 
@@ -234,6 +302,15 @@ export async function createOrder(userId: string, authedEmail: string, input: Cr
         city: input.city,
         state: input.state,
         pincode: input.pincode,
+        shippingFee,
+        productCostTotal,
+        packagingCost: profit.packagingCost,
+        courierCost: profit.courierCost,
+        paymentGatewayFee: profit.paymentGatewayFee,
+        marketingCost: profit.marketingCost,
+        exchangeBuffer: profit.exchangeBuffer,
+        miscCost: profit.miscCost,
+        netContribution: profit.netContribution,
         items: { create: itemsData },
       },
     });

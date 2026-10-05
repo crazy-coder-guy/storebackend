@@ -14,6 +14,7 @@ import inventoryRoutes from './inventory.routes';
 import newsletterRoutes from './newsletter.routes';
 import orderRoutes from './order.routes';
 import pincodeRoutes from './pincode.routes';
+import pricingRoutes from './pricing.routes';
 import productRoutes from './product.routes';
 import pushRoutes from './push.routes';
 import reviewsAdminRoutes from './reviewsAdmin.routes';
@@ -50,6 +51,7 @@ v1.use('/exchanges', exchangeRoutes);
 v1.use('/newsletter', newsletterRoutes);
 v1.use('/visits', visitRoutes);
 v1.use('/pincode', pincodeRoutes);
+v1.use('/pricing', pricingRoutes);
 
 router.use('/v1', v1);
 

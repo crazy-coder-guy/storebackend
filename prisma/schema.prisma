@@ -97,6 +97,10 @@ model Product {
   productType String        @map("product_type")
   basePrice   Decimal       @map("base_price")
   mrp         Decimal
+  // Base manufacturing/procurement cost — never exposed to the storefront.
+  // A variant can override this via ProductVariant.costPrice; this is the
+  // fallback used when a variant doesn't set its own.
+  costPrice   Decimal?      @map("cost_price")
   badge       String?
   status      ProductStatus @default(DRAFT)
   gsm         Int?
@@ -173,6 +177,9 @@ model ProductVariant {
   sizeId        String       @map("size_id")
   sku           String       @unique
   price         Decimal?
+  // Per-variant override of Product.costPrice — same fallback pattern as
+  // `price` overriding Product.basePrice. Never exposed to the storefront.
+  costPrice     Decimal?     @map("cost_price")
   stockQuantity Int          @default(0) @map("stock_quantity")
   badge         String?
   status        EntityStatus @default(ACTIVE)
@@ -227,6 +234,26 @@ model StorefrontSetting {
   updatedAt         DateTime  @updatedAt @map("updated_at")
 
   @@map("storefront_settings")
+}
+
+// Singleton row (id is always "default") holding the admin-configurable cost
+// assumptions used to compute recommended selling prices and per-order
+// profit — separate from StorefrontSetting since this is internal cost
+// config, never exposed to the storefront, vs. that model's public-facing copy.
+model PricingSetting {
+  id                    String   @id @default("default")
+  packagingCost         Decimal  @default(20) @map("packaging_cost")
+  courierCost           Decimal  @default(65) @map("courier_cost")
+  paymentGatewayPercent Decimal  @default(2.5) @map("payment_gateway_percent")
+  exchangeBuffer        Decimal  @default(20) @map("exchange_buffer")
+  miscCost              Decimal  @default(10) @map("misc_cost")
+  marketingCost         Decimal  @default(75) @map("marketing_cost")
+  targetProfit          Decimal  @default(150) @map("target_profit")
+  freeShippingThreshold Decimal  @default(999) @map("free_shipping_threshold")
+  shippingCharge        Decimal  @default(59) @map("shipping_charge")
+  updatedAt             DateTime @updatedAt @map("updated_at")
+
+  @@map("pricing_settings")
 }
 
 model FeaturedProduct {
@@ -284,12 +311,31 @@ model Order {
   createdAt         DateTime      @default(now()) @map("created_at")
   updatedAt         DateTime      @updatedAt @map("updated_at")
 
-  couponId       String?  @map("coupon_id")
-  discountAmount Decimal  @default(0) @map("discount_amount")
+  couponId       String? @map("coupon_id")
+  discountAmount Decimal @default(0) @map("discount_amount")
 
-  user  User        @relation(fields: [userId], references: [id], onDelete: Restrict)
-  items OrderItem[]
-  reviews Review[]
+  // Order-level shipping fee actually charged to the customer (visible to
+  // them, unlike everything below) — split out of totalAmount so it's not
+  // re-derived later from the (possibly since-changed) pricing settings.
+  shippingFee Decimal @default(0) @map("shipping_fee")
+
+  // Cost/profit snapshot at order time — never exposed to the storefront.
+  // Snapshotted (not re-derived later) so historical profit reporting stays
+  // accurate even if product costs or pricing settings change afterward.
+  // Courier/packaging are order-level (charged once per order, not per
+  // item); productCostTotal is the sum of each OrderItem's costPrice*quantity.
+  productCostTotal  Decimal @default(0) @map("product_cost_total")
+  packagingCost     Decimal @default(0) @map("packaging_cost")
+  courierCost       Decimal @default(0) @map("courier_cost")
+  paymentGatewayFee Decimal @default(0) @map("payment_gateway_fee")
+  marketingCost     Decimal @default(0) @map("marketing_cost")
+  exchangeBuffer    Decimal @default(0) @map("exchange_buffer")
+  miscCost          Decimal @default(0) @map("misc_cost")
+  netContribution   Decimal @default(0) @map("net_contribution")
+
+  user             User              @relation(fields: [userId], references: [id], onDelete: Restrict)
+  items            OrderItem[]
+  reviews          Review[]
   exchangeRequests ExchangeRequest[]
   coupon           Coupon?           @relation(fields: [couponId], references: [id], onDelete: SetNull)
   couponRedemption CouponRedemption?
@@ -306,9 +352,12 @@ model OrderItem {
   variantId String  @map("variant_id")
   quantity  Int
   unitPrice Decimal @map("unit_price")
+  // Snapshot of the variant/product cost at order time — mirrors unitPrice,
+  // never exposed to the storefront. Used for per-product profit reporting.
+  costPrice Decimal @default(0) @map("cost_price")
 
-  order           Order             @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  variant         ProductVariant    @relation(fields: [variantId], references: [id], onDelete: Restrict)
+  order            Order             @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  variant          ProductVariant    @relation(fields: [variantId], references: [id], onDelete: Restrict)
   exchangeRequests ExchangeRequest[]
 
   @@index([orderId])

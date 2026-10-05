@@ -3,7 +3,8 @@ import { prisma } from '../database/prisma';
 import { AppError } from '../utils/AppError';
 import { buildMeta } from '../utils/pagination';
 import { AddCartItemInput, UpdateCartItemInput } from '../validation/cart.validation';
-import { FREE_DELIVERY_THRESHOLD, calculateDeliveryFee } from '../utils/pricing';
+import { calculateDeliveryFee, PricingSettingsLike } from '../utils/pricing';
+import { getPricingSettings } from './pricing.service';
 import * as couponService from './coupon.service';
 
 const cartItemInclude = {
@@ -64,12 +65,13 @@ async function getCartItems(cartId: string) {
 
 function buildCartSummary(
   items: ReturnType<typeof serializeCartItem>[],
+  settings: PricingSettingsLike,
   coupon?: { code: string; discountAmount: number } | null
 ) {
   const subtotal = items.reduce((sum, item) => sum + item.price * item.quantity, 0);
   const mrpTotal = items.reduce((sum, item) => sum + item.mrp * item.quantity, 0);
   const discount = Math.max(0, mrpTotal - subtotal);
-  const deliveryFee = calculateDeliveryFee(subtotal);
+  const deliveryFee = calculateDeliveryFee(subtotal, settings);
   const couponDiscount = coupon?.discountAmount ?? 0;
   return {
     subtotal,
@@ -79,12 +81,12 @@ function buildCartSummary(
     couponCode: coupon?.code ?? null,
     couponDiscount,
     total: Math.max(0, subtotal + deliveryFee - couponDiscount),
-    freeDeliveryThreshold: FREE_DELIVERY_THRESHOLD,
+    freeDeliveryThreshold: Number(settings.freeShippingThreshold),
   };
 }
 
 async function getCartWithSummary(cart: { id: string; userId: string; couponId: string | null }) {
-  const items = await getCartItems(cart.id);
+  const [items, settings] = await Promise.all([getCartItems(cart.id), getPricingSettings()]);
   const subtotal = items.reduce((sum, item) => sum + item.price * item.quantity, 0);
 
   let appliedCoupon: { code: string; discountAmount: number } | null = null;
@@ -100,7 +102,7 @@ async function getCartWithSummary(cart: { id: string; userId: string; couponId: 
     }
   }
 
-  return { items, summary: buildCartSummary(items, appliedCoupon) };
+  return { items, summary: buildCartSummary(items, settings, appliedCoupon) };
 }
 
 export async function getCart(userId: string) {
@@ -212,7 +214,8 @@ export async function clearCart(userId: string) {
   const cart = await getOrCreateCart(userId);
   await prisma.cartItem.deleteMany({ where: { cartId: cart.id } });
   await prisma.cart.update({ where: { id: cart.id }, data: { couponId: null } });
-  return { items: [], summary: buildCartSummary([]) };
+  const settings = await getPricingSettings();
+  return { items: [], summary: buildCartSummary([], settings) };
 }
 
 // Admin-facing: every user currently sitting on a non-empty cart — the
@@ -229,6 +232,7 @@ export async function listCartsWithItems(params: {
 }) {
   const { page, limit, skip, take, search } = params;
 
+  const settings = await getPricingSettings();
   const carts = await prisma.cart.findMany({
     where: {
       items: { some: {} },
@@ -251,7 +255,7 @@ export async function listCartsWithItems(params: {
 
   const rows = carts.map((cart) => {
     const items = cart.items.map(serializeCartItem);
-    const summary = buildCartSummary(items);
+    const summary = buildCartSummary(items, settings);
     const itemsCount = items.reduce((sum, item) => sum + item.quantity, 0);
     return {
       userId: cart.userId,

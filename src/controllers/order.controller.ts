@@ -21,7 +21,7 @@ export const listOrders = asyncHandler(async (req: Request, res: Response) => {
 });
 
 export const getOrder = asyncHandler(async (req: Request, res: Response) => {
-  const order = await orderService.getOrderById(req.params.id);
+  const order = await orderService.getOrderByIdForAdmin(req.params.id);
   return sendSuccess(res, order, 'Order fetched');
 });
 
