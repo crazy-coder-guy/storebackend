@@ -39,4 +39,12 @@ ARG PORT=3000
 ENV PORT=${PORT}
 EXPOSE ${PORT}
 
-CMD ["node", "dist/server.js"]
+# `prisma generate` (build stage) only regenerates the client to match
+# schema.prisma — it never touches the database. Without applying pending
+# migrations here too, a deploy can ship a client that queries columns the
+# production database doesn't have yet (exactly what happened: cost_price /
+# shipping_fee existed in the schema and compiled client, but no migration
+# had ever run against Render's database). `migrate deploy` is safe to run
+# on every boot — it only applies migrations not yet recorded as applied and
+# no-ops otherwise.
+CMD ["sh", "-c", "npx prisma migrate deploy && node dist/server.js"]
