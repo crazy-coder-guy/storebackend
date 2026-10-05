@@ -29,3 +29,28 @@ export const getProfitabilityTimeseries = asyncHandler(async (req: Request, res:
   const series = await dashboardService.getProfitabilityTimeseries(days);
   return sendSuccess(res, { days, series }, 'Profitability timeseries fetched');
 });
+
+function resolveDays(req: Request): number {
+  const requested = parseInt(String(req.query.days ?? '7'), 10);
+  return ALLOWED_RANGES.has(requested) ? requested : 7;
+}
+
+export const getTopProducts = asyncHandler(async (req: Request, res: Response) => {
+  const days = resolveDays(req);
+  const requestedLimit = parseInt(String(req.query.limit ?? '5'), 10);
+  const limit = Number.isFinite(requestedLimit) ? Math.min(Math.max(requestedLimit, 1), 10) : 5;
+  const products = await dashboardService.getTopProducts(days, limit);
+  return sendSuccess(res, { days, products }, 'Top products fetched');
+});
+
+export const getCategoryPerformance = asyncHandler(async (req: Request, res: Response) => {
+  const days = resolveDays(req);
+  const categories = await dashboardService.getCategoryPerformance(days);
+  return sendSuccess(res, { days, categories }, 'Category performance fetched');
+});
+
+export const getOrderStatusBreakdown = asyncHandler(async (req: Request, res: Response) => {
+  const days = resolveDays(req);
+  const breakdown = await dashboardService.getOrderStatusBreakdown(days);
+  return sendSuccess(res, { days, ...breakdown }, 'Order status breakdown fetched');
+});

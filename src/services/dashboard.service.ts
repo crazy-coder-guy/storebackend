@@ -166,3 +166,102 @@ export async function getProfitabilityTimeseries(days: number) {
     orderCount: Number(row.order_count),
   }));
 }
+
+interface TopProductRow {
+  product_id: string;
+  name: string;
+  units: bigint;
+  revenue: Prisma.Decimal | null;
+}
+
+// Ranked by revenue within the window — units sold come along for the
+// tooltip/secondary label, not as the sort key.
+export async function getTopProducts(days: number, limit: number) {
+  const rows = await prisma.$queryRaw<TopProductRow[]>`
+    SELECT
+      p.id AS product_id,
+      p.name AS name,
+      SUM(oi.quantity) AS units,
+      SUM(oi.unit_price * oi.quantity) AS revenue
+    FROM order_items oi
+    JOIN orders o ON o.id = oi.order_id
+    JOIN product_variants pv ON pv.id = oi.variant_id
+    JOIN products p ON p.id = pv.product_id
+    WHERE o.status != 'CANCELLED'
+      AND o.created_at >= (CURRENT_DATE - (${days - 1} || ' days')::interval)
+    GROUP BY p.id, p.name
+    ORDER BY revenue DESC
+    LIMIT ${limit};
+  `;
+
+  return rows.map((row) => ({
+    productId: row.product_id,
+    name: row.name,
+    units: Number(row.units),
+    revenue: Number(row.revenue ?? 0),
+  }));
+}
+
+interface CategoryPerformanceRow {
+  category_id: string;
+  name: string;
+  revenue: Prisma.Decimal | null;
+  gross_profit: Prisma.Decimal | null;
+}
+
+// "Gross profit" here is per-item (unitPrice - costPrice) * quantity — it
+// deliberately excludes order-level costs (courier/packaging/gateway/
+// marketing) which aren't attributable to a single category, unlike the
+// order-level "Net Profit" used elsewhere on this dashboard.
+export async function getCategoryPerformance(days: number) {
+  const rows = await prisma.$queryRaw<CategoryPerformanceRow[]>`
+    SELECT
+      c.id AS category_id,
+      c.name AS name,
+      SUM(oi.unit_price * oi.quantity) AS revenue,
+      SUM((oi.unit_price - oi.cost_price) * oi.quantity) AS gross_profit
+    FROM order_items oi
+    JOIN orders o ON o.id = oi.order_id
+    JOIN product_variants pv ON pv.id = oi.variant_id
+    JOIN products p ON p.id = pv.product_id
+    JOIN categories c ON c.id = p.category_id
+    WHERE o.status != 'CANCELLED'
+      AND o.created_at >= (CURRENT_DATE - (${days - 1} || ' days')::interval)
+    GROUP BY c.id, c.name
+    ORDER BY revenue DESC;
+  `;
+
+  return rows.map((row) => ({
+    categoryId: row.category_id,
+    name: row.name,
+    revenue: Number(row.revenue ?? 0),
+    grossProfit: Number(row.gross_profit ?? 0),
+  }));
+}
+
+export async function getOrderStatusBreakdown(days: number) {
+  const since = new Date();
+  since.setDate(since.getDate() - (days - 1));
+  since.setHours(0, 0, 0, 0);
+
+  const [byStatus, byPaymentStatus] = await Promise.all([
+    prisma.order.groupBy({
+      by: ['status'],
+      where: { createdAt: { gte: since } },
+      _count: { _all: true },
+    }),
+    prisma.order.groupBy({
+      by: ['paymentStatus'],
+      where: { createdAt: { gte: since } },
+      _count: { _all: true },
+    }),
+  ]);
+
+  return {
+    byStatus: byStatus.map((row) => ({ status: row.status, count: row._count._all })),
+    byPaymentStatus: byPaymentStatus.map((row) => ({
+      paymentStatus: row.paymentStatus,
+      count: row._count._all,
+    })),
+  };
+}
